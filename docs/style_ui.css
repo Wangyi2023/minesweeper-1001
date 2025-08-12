@@ -290,7 +290,7 @@ body.sidebar-collapsed .expand-button {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    width: 420px;
+    width: 400px;
 }
 .notice {
     width: 100%;

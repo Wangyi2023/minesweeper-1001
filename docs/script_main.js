@@ -31,23 +31,23 @@ const Cv_ = 0b00100000;
 const Vs_ = 0b01000000;
 const Mk_ = 0b10000000;
 
-
 let current_difficulty = 'high';
 let id = 0;
 
 const STORED_HASH = '6db07d30';
-const FINAL_DELTA = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
+const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
-const DELAY = 0;
 const ALGORITHM_LIMIT = 480;
 
 let first_step = true;
 let game_over = false;
+
 let start_time = null;
-let last_notice_time = null;
 let timer_interval = null;
+let last_notice_time = 0;
 
 let algorithm_enabled = false;
 let cursor_enabled = false;
@@ -74,6 +74,7 @@ function start({parameters} = {}) {
     render_border();
 
     algorithm_enabled = X * Y <= ALGORITHM_LIMIT;
+    algorithm_enabled = false;
     first_step = true;
     game_over = false;
     counter_revealed = 0;
@@ -83,7 +84,6 @@ function start({parameters} = {}) {
     cursor_path = cursor_x * Y + cursor_y;
 
     start_time = null;
-    last_notice_time = 0;
     clearInterval(timer_interval);
 
     init_information_box();
@@ -107,8 +107,9 @@ function add_mines_random(target_number_of_mines) {
         const rx = (ri / Y) | 0;
         const ry = ri - rx * Y;
 
-        for (const [dx, dy] of FINAL_DELTA) {
-            const [x, y] = [rx + dx, ry + dy];
+        for (let n = 0; n < 8; n++) {
+            const x = rx + DX[n];
+            const y = ry + DY[n];
             if (x >= 0 && x < X && y >= 0 && y < Y) {
                 BOARD_DATA[x * Y + y]++;
             }
@@ -128,7 +129,7 @@ function get_difficulty_params(difficulty) {
             const x = ((window.innerHeight - 100) / (CELL_SIZE + 2)) | 0;
             const y = ((window.innerWidth - 20) / (CELL_SIZE + 2)) | 0;
             const n = ( x * y * 0.20625) | 0;
-            return { X: x, Y: y, N: n };
+            return { X: x, Y: y, N: 0 };
         default:
             return { X: 16, Y: 30, N: 99 };
     }
@@ -164,11 +165,16 @@ function hash_x(input) {
     return (hash >>> 0).toString(16).padStart(8, '0');
 }
 // Todo 1.2 - Edit Main Field
-function click_cell(i) {
+function select_cell(i) {
     if (game_over || !(BOARD_DATA[i] & Cv_)) {
         return;
     }
     if (first_step) {
+        while (BOARD_DATA[i] & Mi_) {
+            console.log("Restart - first step");
+            start();
+        }
+        document.getElementById('status-info').textContent = 'In Progress';
         first_step = false;
         start_timer();
     }
@@ -179,17 +185,52 @@ function click_cell(i) {
         update_marks_info();
         return;
     }
-    if (BOARD_DATA[i] & Mi_) {
-        clearInterval(timer_interval);
-        send_notice('failed');
-    }
-    reveal_linked_cells(i, id);
-    admin_reveal_cell(i, id);
-}
-function reveal_linked_cells(i, current_id) {
 
+    admin_reveal_cell(i, id);
+    if (!(BOARD_DATA[i] & Nr_)) {
+        reveal_linked_cells_with_delay(i, id);
+    }
 }
+function reveal_linked_cells_with_delay(i, current_id) {
+    const queue = [i];
+    BOARD_DATA[i] |= Vs_;
+
+    let index = 0;
+    while (index < queue.length) {
+        const j = queue[index];
+        index++;
+        if (BOARD_DATA[j] & Nr_) {
+            continue;
+        }
+        const jx = (j / Y) | 0;
+        const jy = j - jx * Y;
+        for (let n = 0; n < 8; n++) {
+            const x = jx + DX[n];
+            const y = jy + DY[n];
+            if (x >= 0 && x < X && y >= 0 && y < Y) {
+                const k = x * Y + y;
+                if (!(BOARD_DATA[k] & Vs_)) {
+                    queue.push(k);
+                    BOARD_DATA[k] |= Vs_;
+                }
+            }
+        }
+    }
+    let delay = 0;
+    const step = 5;
+    for (const j of queue) {
+        setTimeout(() => {
+            admin_reveal_cell(j, current_id);
+        }, delay)
+        delay += step;
+    }
+}
+
 function admin_reveal_cell(i, current_id) {
+    /*
+    注意！所有 reveal cell 的行为必须通过此函数
+    因为所有检测游戏状态的机制和终止游戏的行为都从此函数开始，此处为分界线
+     */
     if (game_over || current_id !== id) {
         return;
     }
@@ -205,6 +246,9 @@ function admin_reveal_cell(i, current_id) {
     BOARD_DATA[i] &= ~Cv_;
     update_cell_display(i);
     counter_revealed++;
+    if (!game_over & counter_revealed === X * Y - N) {
+        terminate(true);
+    }
 }
 function mark_cell(i) {
     if (game_over || !(BOARD_DATA[i] & Cv_)) {
@@ -221,14 +265,48 @@ function mark_cell(i) {
     update_marks_info();
 }
 // Todo 1.3 - Algorithm for UI
+function auto_mark() {
+    if (game_over) {
+        return;
+    }
+    if (!algorithm_enabled) {
+        send_notice('n_enabled');
+        return;
+    }
+}
+function send_hint() {
+    if (game_over) {
+        return;
+    }
+    if (!algorithm_enabled) {
+        send_notice('n_enabled');
+        return;
+    }
+    let hx = 0;
+    let hy = 0;
+    const target_element = CELL_ELEMENTS[hx * Y + hy];
+    target_element.classList.add('hint');
+    setTimeout(() => {
+        target_element.classList.remove('hint');
+    }, 2000);
+}
 function solve() {
-
+    if (game_over) {
+        return;
+    }
+    if (!algorithm_enabled) {
+        send_notice('n_enabled');
+        return;
+    }
 }
 async function solve_all() {
-
-}
-function auto_mark() {
-
+    if (game_over) {
+        return;
+    }
+    if (!algorithm_enabled) {
+        send_notice('n_enabled');
+        return;
+    }
 }
 
 
@@ -278,7 +356,7 @@ function generate_game_field() {
         div.className = "cell";
         div.style.fontSize = `${FONT_SIZE}px`;
         div.dataset.index = i.toString()
-        div.addEventListener("click", () => click_cell(i));
+        div.addEventListener("click", () => select_cell(i));
         div.addEventListener("contextmenu", (e) => {
             e.preventDefault();
             mark_cell(i);
@@ -288,12 +366,12 @@ function generate_game_field() {
     }
 }
 // Todo 2.2 - Edit Game Status
-function select_difficulty(difficulty) {
+function set_difficulty(difficulty) {
     current_difficulty = difficulty;
     start();
     close_difficulty_menu();
 }
-function select_background(filename) {
+function set_background(filename) {
     document.documentElement.style.setProperty('--background-url', `url("Background_Collection/${filename}")`);
     close_background_menu();
 }
@@ -304,6 +382,8 @@ function update_cell_display(i) {
     if (target_cell & Mi_) {
         target_element.textContent = ' ';
         target_element.classList.add('mine');
+
+        terminate(false);
     } else {
         const number = (target_cell & Nr_);
         target_element.textContent = number > 0 ? number : ' ';
@@ -313,6 +393,17 @@ function update_cell_display(i) {
 function start_timer() {
     start_time = Date.now();
     timer_interval = setInterval(update_time_info, 100);
+}
+function terminate(completed) {
+    game_over = true;
+    clearInterval(timer_interval);
+    if (completed) {
+        document.getElementById('status-info').textContent = 'Completed';
+        send_notice('congrats');
+    } else {
+        document.getElementById('status-info').textContent = 'Failed';
+        send_notice('failed');
+    }
 }
 function update_time_info() {
     const elapsed = (Date.now() - start_time) / 1000;
@@ -339,7 +430,7 @@ function send_notice(type, timeout = 4500) {
     notice_progress.classList.add('notice-progress');
     switch (type) {
         case 'congrats':
-            notice_text.innerHTML = "Congratulations.<br> You've successfully completed the Minesweeper.";
+            notice_text.innerHTML = "Congratulations.<br> You've successfully completed Minesweeper.";
             notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
             break;
         case 'failed':
@@ -347,7 +438,7 @@ function send_notice(type, timeout = 4500) {
             notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
             break;
         case 'n_enabled':
-            notice_text.innerHTML = "Error.<br> Algorithm was not activated.";
+            notice_text.innerHTML = "Warning.<br> Algorithm was not activated.";
             notice_progress.style.backgroundColor = 'rgba(255, 150, 0, 1)';
             break;
         default:
@@ -430,7 +521,7 @@ function handle_keydown(event) {
             mark_cell(cursor_x * Y + cursor_y);
             break;
         case ' ':
-            click_cell(cursor_x * Y + cursor_y);
+            select_cell(cursor_x * Y + cursor_y);
             break;
     }
     updateCursor();
@@ -506,22 +597,7 @@ function updateCursor() {
         target_element.classList.add('cursor');
     }
 }
-function send_hint() {
-    if (game_over) {
-        return;
-    }
-    if (!algorithm_enabled) {
-        send_notice('n_enabled');
-        return;
-    }
-    let hx = 0;
-    let hy = 0;
-    const target_element = CELL_ELEMENTS[hx * Y + hy];
-    target_element.classList.add('hint');
-    setTimeout(() => {
-        target_element.classList.remove('hint');
-    }, 2000);
-}
+
 
 
 
