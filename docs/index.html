@@ -24,33 +24,33 @@
                 <div id="information-list" class="sidebar-button info-list" style="display: block">
                     <div class="info-line">
                         <span class="info-label">Status</span>
-                        <span id="status-info" class="info-value">In Progress</span>
+                        <span id="status-info" class="info-value"></span>
                     </div>
                     <div class="info-line">
                         <span class="info-label">Time</span>
-                        <span id="time-info" class="info-value">0.0 s</span>
+                        <span id="time-info" class="info-value"></span>
                     </div>
                     <div class="info-line">
                         <span class="info-label">Size</span>
-                        <span id="board-info" class="info-value">16 × 30 / Mines 99</span>
+                        <span id="size-info" class="info-value"></span>
                     </div>
                     <div class="info-line">
                         <span class="info-label">Marks</span>
-                        <span id="marks-info" class="info-value">0</span>
+                        <span id="marks-info" class="info-value"></span>
                     </div>
                     <div class="info-line">
                         <span class="info-label">Density</span>
-                        <span id="density-info" class="info-value">20.63%</span>
+                        <span id="density-info" class="info-value"></span>
                     </div>
                     <div class="info-line">
                         <span class="info-label">Solvability</span>
-                        <span id="solvability-info" class="info-value">false</span>
+                        <span id="solvability-info" class="info-value"></span>
                     </div>
                 </div>
             </div>
 
             <div class="sidebar-button">
-                <div id="start-btn" class="button" onclick="start_game()">Restart</div>
+                <div id="start-btn" class="button" onclick="start()">Restart</div>
             </div>
 
             <div class="sidebar-button dropdown">
@@ -113,24 +113,23 @@
 
 <div class="main-content">
     <div class="header">
-        <h1 onclick="start_game()">
+        <h1 onclick="start()">
             <img src="Image/minesweeper_title.png" alt="title" id="title-img">
         </h1>
     </div>
     <div id="board-wrapper" class="board-wrapper">
         <div id="board"></div>
-        <div class="board-border"></div>
+        <div id="border" class="border"></div>
+        <div id="border-outline" class="border-outline"></div>
     </div>
 </div>
 
-
 <!-- Script - Part 1 -->
-<script src="script_classes.js"></script>
-<script src="script.js"></script>
+<script src="script_main.js"></script>
 
 <!-- Modal -->
 <div id="guide-modal" class="modal" onclick="close_guide(event)">
-    <div class="modal-content">
+    <div id="guide-content" class="modal-content">
         <span class="close-button" onclick="hide_guide()">&times;</span>
         <div style="display: flex; flex-direction: row; gap: 20px;">
             <div style="flex: 1; text-align: left;">
@@ -164,6 +163,7 @@
     </div>
 </div>
 
+<!-- Notice -->
 <div id="notice-container" class="notice-container"></div>
 
 </body>
