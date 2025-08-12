@@ -7,7 +7,7 @@ X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信
 具体存储方式为，将存储 Cell 的二维矩阵扁平化为一维数组，将单个 Cell 的各项信息分别存储在 8 位中的各个部分，具体存储方式在下面表格中
 而 CELL_ELEMENTS 只用于存储 cell_element 的索引，它无法被 Uint8Array 压缩，只能用普通数组存储
 它的作用是快速寻找到需要渲染的 cell，而不必频繁调用 querySelector
-*/
+ */
 let X, Y, N, BOARD_DATA, CELL_ELEMENTS;
 /*
 数据通过下面的 Mask 被压缩，通过位运算可直接获取它们的各项信息，由于 number 这一项信息的数据类型为 int，我选择把它放到最低位，
@@ -23,7 +23,7 @@ let X, Y, N, BOARD_DATA, CELL_ELEMENTS;
 DATA[x * Y + y] & NUMBER_MASK     <-> number on the cell (x, y) is n
 DATA[x * Y + y] & MINE_MAS        <-> cell (x, y) is mine
 DATA[x * Y + y] & COVERED_MASK    <-> cell (x, y) is covered
-*/
+ */
 const Nr_ = 0b00001111;
 const Mi_ = 0b00010000;
 const Cv_ = 0b00100000;
@@ -265,7 +265,7 @@ function admin_reveal_cell(i, current_id) {
     /*
     注意！所有 reveal cell 的行为必须通过下面的 admin_reveal_cell 函数，因为所有检测游戏状态的机制
     和终止游戏的行为都从此函数开始，此处为分界线
-    */
+     */
     if (game_over || current_id !== ID) {
         return;
     }
@@ -287,8 +287,9 @@ function admin_reveal_cell(i, current_id) {
 }
 function mark_cell(i) {
     /*
-    未确保 DATA 占用内存尽可能小和集中，主算法性能尽可能高，标记 mark 这一性质不被存储在 DATA 里标记操作（插旗）不会影响游戏数据，只会更改网页中对应的 div 的性质
-    */
+    未确保 DATA 占用内存尽可能小和集中，主算法性能尽可能高，标记 mark 这一性质不被存储在 DATA 里，标记操作（插旗）
+    不会影响游戏数据，只会更改网页中对应的 div 的性质
+     */
     if (game_over || !(BOARD_DATA[i] & Cv_)) {
         return;
     }
