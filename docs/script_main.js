@@ -9,7 +9,6 @@ X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信
 它的作用是快速寻找到需要渲染的 cell，而不必频繁调用 querySelector
 */
 let X, Y, N, BOARD_DATA, CELL_ELEMENTS;
-
 /*
 数据通过下面的 Mask 被压缩，通过位运算可直接获取它们的各项信息，由于 number 这一项信息的数据类型为 int，我选择把它放到最低位，
 这样只需掩码位运算就可获取到 int 以及更改它的值，如果放在高位，需要额外的左移和右移运算，并且在游戏中它的值为 0-8，因此只需要 4 bit
@@ -30,13 +29,23 @@ const Mi_ = 0b00010000;
 const Cv_ = 0b00100000;
 const Vs_ = 0b01000000;
 const Mk_ = 0b10000000;
-
-let current_difficulty = 'high';
-let id = 0;
-
+/*
+游戏 ID 的作用是在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断
+ */
+let ID = 0;
+/*
+Stored_Hash 为激活算法的密码，在测试阶段和一些特殊情况下，例如棋盘过大导致算法卡顿而引起游戏体验变差时，我会关闭复杂算法，
+此时如果需要强行激活算法需要用到此密码
+ */
 const STORED_HASH = '6db07d30';
+/*
+DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标，为满足特殊需求比如有时只需要分析上下左右的方向，我将上下左右的坐标
+放置于前4位，以方便及时截断，整体遍历顺序为顺时针方向，在延迟打开大量坐标时视觉效果很好。
+ */
 const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
 const DY = [0, 1, 0, -1, 1, 1, -1, -1];
+
+let current_difficulty = 'high';
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
@@ -61,7 +70,7 @@ let cursor_x, cursor_y, cursor_path;
 
 // Todo 1.1 - Init
 function start({parameters} = {}) {
-    id++;
+    ID++;
 
     const params = get_difficulty_params(current_difficulty);
     X = params.X;
@@ -94,19 +103,35 @@ function init_board_data() {
     for (let i = 0; i < X * Y; i++) {
         BOARD_DATA[i] |= Cv_;
     }
-    add_mines_random(N);
 }
-function add_mines_random(target_number_of_mines) {
-    let counter = 0;
-    while (counter < target_number_of_mines) {
-        const ri = (Math.random() * X * Y) | 0;
+function set_mines(target_number_of_mines, position_first_click) {
+    const fx = (position_first_click / Y) | 0;
+    const fy = position_first_click - fx * Y;
 
-        if (BOARD_DATA[ri] & Mi_) continue;
+    let size = X * Y;
+    const array = new Uint32Array(size);
+    for (let i = 0; i < size; i++) array[i] = i;
+
+    array[position_first_click] = size--;
+    for (let n = 0; n < 8; n++) {
+        const x = fx + DX[n];
+        const y = fy + DY[n];
+        if (x >= 0 && x < X && y >= 0 && y < Y) {
+            array[x * Y + y] = size--;
+        }
+    }
+
+    for (let i = 0; i < target_number_of_mines; i++) {
+        const r = i + ((Math.random() * (size - i)) | 0);
+        [array[i], array[r]] = [array[r], array[i]];
+    }
+
+    for (let i = 0; i < target_number_of_mines; i++) {
+        const ri = array[i];
         BOARD_DATA[ri] |= Mi_;
 
         const rx = (ri / Y) | 0;
         const ry = ri - rx * Y;
-
         for (let n = 0; n < 8; n++) {
             const x = rx + DX[n];
             const y = ry + DY[n];
@@ -114,7 +139,6 @@ function add_mines_random(target_number_of_mines) {
                 BOARD_DATA[x * Y + y]++;
             }
         }
-        counter++;
     }
 }
 function get_difficulty_params(difficulty) {
@@ -170,10 +194,7 @@ function select_cell(i) {
         return;
     }
     if (first_step) {
-        while (BOARD_DATA[i] & Mi_) {
-            console.log("Restart - first step");
-            start();
-        }
+        set_mines(N, i);
         document.getElementById('status-info').textContent = 'In Progress';
         first_step = false;
         start_timer();
@@ -186,9 +207,9 @@ function select_cell(i) {
         return;
     }
 
-    admin_reveal_cell(i, id);
+    admin_reveal_cell(i, ID);
     if (!(BOARD_DATA[i] & Nr_)) {
-        reveal_linked_cells_with_delay(i, id);
+        reveal_linked_cells_with_delay(i, ID);
     }
 }
 function reveal_linked_cells_with_delay(i, current_id) {
@@ -225,13 +246,12 @@ function reveal_linked_cells_with_delay(i, current_id) {
         delay += step;
     }
 }
-
 function admin_reveal_cell(i, current_id) {
     /*
-    注意！所有 reveal cell 的行为必须通过此函数
-    因为所有检测游戏状态的机制和终止游戏的行为都从此函数开始，此处为分界线
-     */
-    if (game_over || current_id !== id) {
+    注意！所有 reveal cell 的行为必须通过下面的 admin_reveal_cell 函数，因为所有检测游戏状态的机制
+    和终止游戏的行为都从此函数开始，此处为分界线
+    */
+    if (game_over || current_id !== ID) {
         return;
     }
     if (!(BOARD_DATA[i] & Cv_)) {
@@ -251,6 +271,9 @@ function admin_reveal_cell(i, current_id) {
     }
 }
 function mark_cell(i) {
+    /*
+    未确保 DATA 占用内存尽可能小和集中，主算法性能尽可能高，标记 mark 这一性质不被存储在 DATA 里标记操作（插旗）不会影响游戏数据，只会更改网页中对应的 div 的性质
+    */
     if (game_over || !(BOARD_DATA[i] & Cv_)) {
         return;
     }
