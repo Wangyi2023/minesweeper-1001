@@ -100,11 +100,26 @@ function start({parameters} = {}) {
     updateCursor();
 }
 function init_board_data() {
+    /*
+    init_board_data 函数的作用仅仅是初始化棋盘，并且不添加雷，目的是在玩家选择第一个格子后才通过下面的 set_mines 函数
+    确认雷的位置,实际上这个目的也可以通过重设棋盘来完成，但是它的算法量与此思路相比较大，同样的也可以在玩家选择第一个格子后
+    不断 restart 整个游戏，直到玩家选择的位置不是雷为止，这样的代码非常简单但是浪费了很多算力
+     */
     for (let i = 0; i < X * Y; i++) {
         BOARD_DATA[i] |= Cv_;
     }
 }
 function set_mines(target_number_of_mines, position_first_click) {
+    /*
+    这个函数的作用是随机摆放雷的位置，并且输入一个赦免坐标，确保雷不会摆放到此坐标及其相邻坐标，具体思路如下
+    创建一个 Uint32Array 用作打乱后的指针列表，将赦免的坐标依次交换到数组最后，然后打乱除赦免坐标的部分，最后取前面
+    的坐标将其全部设为雷
+    注意！这里有一些优化方式，首先所谓的交换实际上是直接把后面的数字取出然后覆盖到赦免坐标的 index 上，因为最后的几个坐标是
+    需要完全忽视的，也就是 index >= size 的坐标，它们的值是无意义的，更改 size 即可将其视为无效数据
+    其次打乱的时候真正被有效打乱的是前 n 个最后需要被放置雷的坐标，其中第 i 个坐标我们会取任意一个在 [i, size) 之间的坐标
+    与之交换，这个操作截至到 size 就结束了，后面的数据只会与更靠后的数据交换，所以打乱没有意义
+    最后我们取前 n 个坐标将其全部设为雷，并同步更新每一个雷周围的元素的 number，棋盘的创建到此就彻底结束了
+     */
     const fx = (position_first_click / Y) | 0;
     const fy = position_first_click - fx * Y;
 
