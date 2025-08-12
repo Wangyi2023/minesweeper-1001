@@ -3,7 +3,7 @@
 // < Part 0 - Define Global-Variables >
 
 /*
-X 为矩阵的行数，Y 为列数，N 为雷的数量，BOARD-DATA 为存储矩阵信息的高密度容器 Uint8Array
+X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信息的高密度容器 Uint8Array
 具体存储方式为，将存储 Cell 的二维矩阵扁平化为一维数组，将单个 Cell 的各项信息分别存储在 8 位中的各个部分，具体存储方式在下面表格中
 而 CELL_ELEMENTS 只用于存储 cell_element 的索引，它无法被 Uint8Array 压缩，只能用普通数组存储
 它的作用是快速寻找到需要渲染的 cell，而不必频繁调用 querySelector
@@ -12,17 +12,18 @@ let X, Y, N, BOARD_DATA, CELL_ELEMENTS;
 
 /*
 数据通过下面的 Mask 被压缩，通过位运算可直接获取它们的各项信息，由于 number 这一项信息的数据类型为 int，我选择把它放到最低位，
-这样只需掩码位运算就可获取到 int 以及更改它的值，如果放在高位，需要额外的左移和右移运算，而其它元素均为 boolean，可以随意放置，
-其中 internal-mark 是内部标记，用于内部算法计算，与 mark 外部标记不同，外部标记由玩家操控，用于辅助玩家完成游戏，也正是因此外部标记
-不需要存储到 Data 中，而是直接存在页面中对应的 cell-div-classList 中
+这样只需掩码位运算就可获取到 int 以及更改它的值，如果放在高位，需要额外的左移和右移运算，并且在游戏中它的值为 0-8，因此只需要 4 bit
+的位置即可存储它的值
+而其它元素均为 boolean，可以随意放置，其中 internal-mark 是内部标记，用于内部算法计算，与 mark 外部标记不同，外部标记由玩家操控，
+用于辅助玩家完成游戏，也正是因此外部标记不需要存储到 DATA 中，而是直接存在页面中对应的 cell-div-classList 中
 -----------------------------------------
 | internal-mark   | visited   | covered   | mine   | number (0-8)   |
 | bit 7           | bit 6     | bit 5     | bit 4  | bit 0-3        |
 -----------------------------------------
 可通过位掩码提取各项信息，如下
-DATA[x * Y + y] & MINE_MAS is true         -> cell (x, y) is mine
-DATA[x * Y + y] & COVERED_MASK is true      -> cell (x, y) is covered
-DATA[x * Y + y] & NUMBER_MASK is = n    -> number on the cell (x, y) is n
+DATA[x * Y + y] & NUMBER_MASK     <-> number on the cell (x, y) is n
+DATA[x * Y + y] & MINE_MAS        <-> cell (x, y) is mine
+DATA[x * Y + y] & COVERED_MASK    <-> cell (x, y) is covered
 */
 const Nr_ = 0b00001111;
 const Mi_ = 0b00010000;
@@ -82,8 +83,8 @@ function start({parameters} = {}) {
     cursor_path = cursor_x * Y + cursor_y;
 
     start_time = null;
-    timer_interval = null;
     last_notice_time = 0;
+    clearInterval(timer_interval);
 
     init_information_box();
     update_solvability_info();
@@ -164,8 +165,7 @@ function hash_x(input) {
 }
 // Todo 1.2 - Edit Main Field
 function click_cell(i) {
-    const target_cell = BOARD_DATA[i];
-    if (game_over || !(target_cell & Cv_)) {
+    if (game_over || !(BOARD_DATA[i] & Cv_)) {
         return;
     }
     if (first_step) {
@@ -179,12 +179,12 @@ function click_cell(i) {
         update_marks_info();
         return;
     }
-    if (target_cell & Mi_) {
+    if (BOARD_DATA[i] & Mi_) {
         clearInterval(timer_interval);
         send_notice('failed');
     }
     reveal_linked_cells(i, id);
-    admin_reveal_cell(i, id)
+    admin_reveal_cell(i, id);
 }
 function reveal_linked_cells(i, current_id) {
 
@@ -196,9 +196,9 @@ function admin_reveal_cell(i, current_id) {
     if (!(BOARD_DATA[i] & Cv_)) {
         return;
     }
-    const target_cell = CELL_ELEMENTS[i];
-    if (target_cell.classList.contains('marked')) {
-        target_cell.classList.remove('marked');
+    const target_element = CELL_ELEMENTS[i];
+    if (target_element.classList.contains('marked')) {
+        target_element.classList.remove('marked');
         counter_marked--;
         update_marks_info();
     }
