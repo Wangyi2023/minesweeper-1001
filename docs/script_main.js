@@ -30,6 +30,7 @@ const Mi_ = 0b00010000;
 const Cv_ = 0b00100000;
 const Vs_ = 0b01000000;
 const Mk_ = 0b10000000;
+
 /*
 游戏 ID 的作用是在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断
  */
@@ -43,6 +44,18 @@ const STORED_HASH = '6db07d30';
 DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标，为满足特殊需求比如有时只需要分析上下左右的方向，我将上下左右的坐标
 放置于前4位，以方便及时截断，整体遍历顺序为顺时针方向，在延迟打开大量坐标时视觉效果很好。
  */
+
+const Test = {
+    1: { Mines: [[0, 0], [2, 0], [2, 1]] },
+    2: { Mines: [[0, 0], [2, 0], [2, 1], [3, 0], [5, 0], [5, 1], [7, 0]] },
+    3: { Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
+    4: { Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
+    5: { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
+    6: { Mines: [[0, 0], [1, 1], [2, 2]] },
+    7: { Mines: [[0, 1], [1, 0], [2, 2]] },
+    8: { Mines: [[0, 0], [0, 1], [1, 0], [2, 2]] },
+}
+
 const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
 const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 
@@ -52,6 +65,7 @@ const CELL_SIZE = 24;
 const FONT_SIZE = 16;
 const ALGORITHM_LIMIT = 480;
 const DELAY = 5;
+const TIMEOUT = 4500;
 
 let first_step = true;
 let game_over = false;
@@ -77,20 +91,35 @@ let solvable = false;
 // < Part 1 - Game Logic >
 
 // Todo 1.1 - Init
-function start({parameters} = {}) {
+function start({test_id} = {}) {
     ID++;
 
-    const params = get_difficulty_params(current_difficulty);
-    X = params.X;
-    Y = params.Y;
-    N = params.N;
+    if (test_id) {
+        const params = Test[test_id];
+        X = 8;
+        Y = 8;
+        N = params.Mines.length;
+        first_step = false;
+        init_board_data();
 
-    init_board_data();
+        for (const [x, y] of params.Mines) {
+            add_mine(x * Y + y);
+        }
+
+        setTimeout(() => {select_cell(7)}, 50);
+    } else {
+        const params = get_difficulty_params(current_difficulty);
+        X = params.X;
+        Y = params.Y;
+        N = params.N;
+        first_step = true;
+        init_board_data();
+    }
+
     generate_game_field();
     render_border();
 
     algorithm_enabled = X * Y <= ALGORITHM_LIMIT;
-    first_step = true;
     game_over = false;
     counter_revealed = 0;
     counter_marked = 0;
@@ -113,14 +142,11 @@ function start({parameters} = {}) {
 }
 function init_board_data() {
     /*
-    init_board_data 函数的作用仅仅是初始化棋盘，并且不添加雷，目的是在玩家选择第一个格子后才通过下面的 set_mines 函数
+    init_board_data 函数的作用仅仅是初始化棋盘，不添加雷，目的是在玩家选择第一个格子后才通过下面的 set_mines 函数
     确认雷的位置,实际上这个目的也可以通过重设棋盘来完成，但是它的算法量与此思路相比较大，同样的也可以在玩家选择第一个格子后
     不断 restart 整个游戏，直到玩家选择的位置不是雷为止，这样的代码非常简单但是浪费了很多算力
      */
-    DATA = new Uint8Array(X * Y);
-    for (let i = 0; i < X * Y; i++) {
-        DATA[i] |= Cv_;
-    }
+    DATA = new Uint8Array(X * Y).fill(Cv_);
 }
 function set_mines(target_number_of_mines, position_first_click) {
     /*
@@ -188,15 +214,6 @@ function get_difficulty_params(difficulty) {
             return { X: 16, Y: 30, N: 99 };
     }
 }
-function activate_algorithm(password) {
-    if (hash_x(password) !== STORED_HASH) return;
-    algorithm_enabled = true;
-    console.log("Algorithm activated.");
-}
-function deactivate_algorithm() {
-    algorithm_enabled = false;
-    console.log("Algorithm deactivated.");
-}
 function hash_x(input) {
     const str = String(input);
     let hash = 0x811C9DC5;
@@ -228,6 +245,9 @@ function select_cell(i) {
         document.getElementById('status-info').textContent = 'In Progress';
         first_step = false;
         start_timer();
+    }
+    if (!solvable && (DATA[i] & Mi_)) {
+        reset_mines(i);
     }
     const target_element = CELL_ELEMENTS[i];
     if (target_element.classList.contains('marked')) {
@@ -301,12 +321,12 @@ function admin_reveal_cell(i, current_id) {
     }
     DATA[i] &= ~Cv_;
     remove_cell_from_solutions(i);
-    update_solvability_info();
     update_cell_display(i);
     counter_revealed++;
     if (!game_over & counter_revealed === X * Y - N) {
         terminate(true);
     }
+    update_solvability_info();
 }
 function mark_cell(i) {
     /*
@@ -365,6 +385,21 @@ function send_hint() {
         target_element.classList.remove('hint');
     }, 2000);
 }
+function auto_mark() {
+    if (game_over) {
+        return;
+    }
+    init_module_collection();
+    calculate_partially_module_collection(false);
+    calculate_complete_module_collection();
+    for (let i = 0; i < X * Y; i++) {
+        if (DATA[i] & Mk_) {
+            if (!CELL_ELEMENTS[i].classList.contains('marked')) {
+                mark_cell(i);
+            }
+        }
+    }
+}
 function solve() {
     if (game_over) {
         return;
@@ -413,7 +448,7 @@ async function solve_all() {
     is_solving = true;
     while (!game_over && is_solving) {
         solve();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        //await new Promise(resolve => setTimeout(resolve, 100));
     }
     document.getElementById('solve-all-btn').classList.remove('selected');
     is_solving = false;
@@ -490,16 +525,25 @@ function calculate_complete_module_collection() {
     }
     if (inverse_module[0] === 0) {
         add_module_cells_to_solutions(inverse_module);
-        console.log('inverse module' + count_bits(inverse_module));
+        safe_push_module(inverse_module);
+        console.log(`3. inverse [0, ${count_bits(inverse_module)}]`);
+    } else {
+        for (const module of module_collection) {
+            const created_module_list = process_module_pair(inverse_module, module);
+            if (created_module_list.length === 3) {
+                add_module_cells_to_solutions(created_module_list[0]);
+                internal_mark_cells_in_module(created_module_list[1]);
+            }
+        }
     }
 }
-function calculate_partially_module_collection() {
+function calculate_partially_module_collection(return_enabled = true) {
     /*
     在这个函数中我们会先创建一个基础的 module_collection，遍历所有 module 让它们相互运算产生新的 module，这个函数的目的
     是发现解，因此一旦检测到某个 module number = 0，将会直接退出循环，并且将这个 module 中所有的坐标都加入 solutions 列表
     如果单圈循环没有创造出新的 module，也会直接退出
      */
-    solutions = [];
+    solutions = new Uint32Array(bitmap_size).fill(0);
     let saved_collection_size = 0;
     while (saved_collection_size < module_collection.length) {
         saved_collection_size = module_collection.length;
@@ -507,7 +551,9 @@ function calculate_partially_module_collection() {
             const module_i = module_collection[i];
             if (module_i[0] === 0) {
                 add_module_cells_to_solutions(module_i);
-                return;
+                if (return_enabled) {
+                    return;
+                }
             }
             for (let j = i + 1; j < module_collection.length; j++) {
                 const module_j = module_collection[j];
@@ -518,7 +564,7 @@ function calculate_partially_module_collection() {
             }
         }
     }
-    console.log('partially module collection: ' + module_collection.length.toString());
+    console.log(`2. partially ${module_collection.length}`);
 }
 function init_module_collection() {
     /*
@@ -566,7 +612,7 @@ function init_module_collection() {
             }
         }
     }
-    console.log('init module collection: ' + module_collection.length.toString());
+    console.log(`1. init ${module_collection.length.toString()}`);
 }
 // Todo 1.4 - Algorithm Part 1 - Module Collection
 function safe_push_module(module_input) {
@@ -777,6 +823,186 @@ function count_bits(bitmap) {
     }
     return count;
 }
+// Todo 1.5 - Reset Algorithm
+function reset_mines(target_mine) {
+    /*
+    这个函数会将输入坐标上的雷转移到其它位置，为确保移动前后所有展示出来的数字没有变化，有时实际上会移动很多关联的雷
+    这个函数在调用的时候一定是 unsolvable 的状态，并且当前拥有最新计算出的 complete module collection
+     */
+    console.warn('start reset');
+    for (const module of module_collection) {
+        if (module[0] > 0 && module[0] === count_bits(module)) {
+            internal_mark_cells_in_module(module);
+        }
+    }
+
+    if (DATA[target_mine] & Mk_) {
+        console.warn('100% mine');
+        return false;
+    }
+
+    /*
+    加入新的 fake-module 重新计算完整的 module collection，这一步可以计算出在玩家的选择下还有哪些
+    linked selection，在重置雷的位置的时候新的雷不可以加入到这里面
+     */
+    init_module_collection();
+    const fake_module = new Uint32Array(bitmap_size).fill(0);
+    const array_position = (target_mine / 32) | 0;
+    const bit_position = target_mine - array_position * 32;
+    fake_module[array_position + 1] |= (1 << bit_position);
+    module_collection.push(fake_module);
+
+    calculate_partially_module_collection(false);
+    calculate_complete_module_collection();
+    for (const module of module_collection) {
+        if (module[0] === 0) {
+            add_module_cells_to_solutions(module);
+        } else if (module[0] === count_bits(module)) {
+            internal_mark_cells_in_module(module);
+        }
+    }
+
+    const COPY = new Uint32Array(DATA);
+
+    let counter_removed = 0;
+    for (let array_position = 1; array_position < bitmap_size; array_position++) {
+        for (let bit_position = 0; bit_position < 32; bit_position++) {
+            if (solutions[array_position] & (1 << bit_position)) {
+                const index = (array_position - 1) * 32 + bit_position;
+                if (DATA[index] & Mi_) {
+                    remove_mine(index);
+                    counter_removed++;
+                }
+            }
+        }
+    }
+    console.warn('removed ' + counter_removed);
+
+    let counter_added = 0;
+    for (let i = 0; i < X * Y; i++) {
+        if ((DATA[i] & Mk_) && !(DATA[i] & Mi_)) {
+            add_mine(i);
+            counter_added++;
+        }
+    }
+    console.warn('added ' + counter_added);
+
+    const current_removed = counter_removed - counter_added;
+    const current_added = counter_added - counter_removed;
+    if (current_removed > 0) {
+        // add removed mines
+        const selections = [];
+        for (let i = 0; i < X * Y; i++) {
+            if ((DATA[i] & Cv_) && !(DATA[i] & Mi_)) {
+                selections.push(i);
+            }
+        }
+        if (selections.length < current_removed) {
+            DATA.set(COPY);
+            console.warn('reset failed');
+            send_notice('reset_failed', false);
+            return false;
+        }
+        for (let i = 0; i < current_removed; i++) {
+            const rj = i + (Math.random() * (current_removed - i)) | 0;
+            const temp = selections[i];
+            selections[i] = selections[rj];
+            selections[rj] = temp;
+        }
+        for (let i = 0; i < current_removed; i++) {
+            add_mine(selections[i]);
+        }
+        console.warn('added ' + current_removed);
+    } else if (current_added > 0) {
+        // remove added mines
+        const selections = [];
+        for (let i = 0; i < X * Y; i++) {
+            if ((DATA[i] & Cv_) && (DATA[i] & Mi_)) {
+                selections.push(i);
+            }
+        }
+        if (selections.length < current_added) {
+            DATA.set(COPY);
+            console.warn('reset failed');
+            send_notice('reset_failed', false);
+            return false;
+        }
+        for (let i = 0; i < current_added; i++) {
+            const rj = i + (Math.random() * (current_added - i)) | 0;
+            const temp = selections[i];
+            selections[i] = selections[rj];
+            selections[rj] = temp;
+        }
+        for (let i = 0; i < current_added; i++) {
+            remove_mine(selections[i]);
+        }
+        console.warn('removed ' + current_added);
+    }
+
+    for (let i = 0; i < X * Y; i++) {
+        if (!(DATA[i] & Cv_) && (DATA[i] & Nr_) === 0) {
+            const ix = (i / Y) | 0;
+            const iy = i - ix * Y;
+            for (let n = 0; n < 8; n++) {
+                const x = ix + DX[n];
+                const y = iy + DY[n];
+                if (x >= 0 && x < X && y >= 0 && y < Y) {
+                    select_cell(x * Y + y);
+                }
+            }
+        }
+    }
+
+    console.warn('reset complete');
+    send_notice('reset_complete', false);
+    return true;
+}
+function remove_mine(index) {
+    DATA[index] &= ~Mi_;
+    update_cell_display(index);
+    const idx = (index / Y) | 0;
+    const idy = index - idx * Y;
+    for (let n = 0; n < 8; n++) {
+        const x = idx + DX[n];
+        const y = idy + DY[n];
+        if (x >= 0 && x < X && y >= 0 && y < Y) {
+            const i = x * Y + y;
+            DATA[i]--;
+            update_cell_display(i);
+        }
+    }
+}
+function add_mine(index) {
+    DATA[index] |= Mi_;
+    update_cell_display(index);
+    const idx = (index / Y) | 0;
+    const idy = index - idx * Y;
+    for (let n = 0; n < 8; n++) {
+        const x = idx + DX[n];
+        const y = idy + DY[n];
+        if (x >= 0 && x < X && y >= 0 && y < Y) {
+            const i = x * Y + y;
+            DATA[i]++;
+            update_cell_display(i);
+        }
+    }
+}
+// Todo 1.6 - Administrator Function
+function activate_algorithm(password) {
+    if (hash_x(password) !== STORED_HASH) return;
+    algorithm_enabled = true;
+    update_solvability_info();
+    console.warn("Algorithm activated.");
+}
+function deactivate_algorithm() {
+    algorithm_enabled = false;
+    update_solvability_info();
+    console.warn("Algorithm deactivated.");
+}
+function test(i) {
+    start({test_id : i});
+}
+
 
 
 
@@ -848,6 +1074,10 @@ function set_background(filename) {
 function update_cell_display(i) {
     const target_element = CELL_ELEMENTS[i];
     const target_cell = DATA[i];
+    if (target_cell & Cv_) {
+        return;
+    }
+
     if (target_cell & Mi_) {
         target_element.textContent = ' ';
         target_element.classList.add('mine');
@@ -890,10 +1120,14 @@ function update_solvability_info() {
     }
 }
 // Todo 2.4 - Message / Shortcuts
-function send_notice(type, timeout = 4500) {
+function send_notice(type, locked = true) {
     const now = Date.now();
-    if (now - last_notice_time < 600) { return; }
-    last_notice_time = now;
+    if (locked) {
+        if (locked && now - last_notice_time < 600) {
+            return;
+        }
+        last_notice_time = now;
+    }
 
     const container = document.getElementById('notice-container');
     const notice = document.createElement('div');
@@ -915,12 +1149,20 @@ function send_notice(type, timeout = 4500) {
             notice_text.innerHTML = "Warning.<br> Algorithm was not activated.";
             notice_progress.style.backgroundColor = 'rgba(255, 150, 0, 1)';
             break;
+        case 'reset_complete':
+            notice_text.innerHTML = "Reset Complete.";
+            notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
+            break;
+        case 'reset_failed':
+            notice_text.innerHTML = "Reset Failed.";
+            notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
+            break;
         default:
             notice_text.innerHTML = "Notice.<br> Default Notice Content - 1024 0010 0024.";
             notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
             break;
     }
-    notice_progress.style.animation = `progressShrink ${timeout}ms linear forwards`;
+    notice_progress.style.animation = `progressShrink ${TIMEOUT}ms linear forwards`;
     notice.appendChild(notice_text);
     notice.appendChild(notice_progress);
     notice.onclick = () => {
@@ -937,7 +1179,7 @@ function send_notice(type, timeout = 4500) {
                 container.removeChild(notice);
             }
         }, 300);
-    }, timeout);
+    }, TIMEOUT);
 }
 function handle_keydown(event) {
     const key = event.key.toLowerCase();
