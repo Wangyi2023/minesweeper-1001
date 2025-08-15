@@ -1156,6 +1156,10 @@ function send_notice(type, locked = true) {
             notice_text.innerHTML = "Reset Failed.";
             notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
             break;
+        case 'copied':
+            notice_text.innerHTML = "Email address copied to clipboard.";
+            notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
+            break;
         default:
             notice_text.innerHTML = "Notice.<br> Default Notice Content - 1024 0010 0024.";
             notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
@@ -1311,6 +1315,22 @@ function updateCursor() {
         const target_element = CELL_ELEMENTS[cursor_x * Y + cursor_y];
         target_element.classList.add('cursor');
     }
+}
+// Todo 2.7 - Email Copy
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            send_notice('copied');
+        })
+        .catch((err) => {
+            const range = document.createRange();
+            range.selectNode(document.querySelector("#guide-content p"));
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+            send_notice('copied');
+        });
 }
 
 
