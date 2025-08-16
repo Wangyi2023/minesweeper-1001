@@ -214,27 +214,6 @@ function get_difficulty_params(difficulty) {
             return { X: 16, Y: 30, N: 99 };
     }
 }
-function hash_x(input) {
-    const str = String(input);
-    let hash = 0x811C9DC5;
-    for (let i = 0; i < str.length; i++) {
-        hash ^= str.charCodeAt(i);
-        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-    }
-
-    hash ^= 0xDEADBEEF;
-    hash = (hash >>> 16) ^ (hash & 0xFFFF);
-    hash *= 0xCAFEBABE;
-    hash ^= hash >>> 15;
-    hash = Math.abs(hash);
-
-    const A = 0x6D2B79F5;
-    hash = (hash * A) >>> 0;
-    hash ^= (hash >> 5) | (hash << 27);
-    hash = (hash * 0x45D9F3B) >>> 0;
-
-    return (hash >>> 0).toString(16).padStart(8, '0');
-}
 // Todo 1.2 - Edit Main Field
 function select_cell(i) {
     if (game_over || !(DATA[i] & Cv_)) {
@@ -1001,6 +980,27 @@ function deactivate_algorithm() {
     algorithm_enabled = false;
     update_solvability_info();
     console.warn("Algorithm deactivated.");
+}
+function hash_x(input) {
+    const str = String(input);
+    let hash = 0x811C9DC5;
+    for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+    }
+
+    hash ^= 0xDEADBEEF;
+    hash = (hash >>> 16) ^ (hash & 0xFFFF);
+    hash *= 0xCAFEBABE;
+    hash ^= hash >>> 15;
+    hash = Math.abs(hash);
+
+    const A = 0x6D2B79F5;
+    hash = (hash * A) >>> 0;
+    hash ^= (hash >> 5) | (hash << 27);
+    hash = (hash * 0x45D9F3B) >>> 0;
+
+    return (hash >>> 0).toString(16).padStart(8, '0');
 }
 function test(i) {
     start({test_id : i});
