@@ -246,7 +246,7 @@ function select_cell(i) {
         first_step = false;
         start_timer();
     }
-    if (!solvable && (DATA[i] & Mi_)) {
+    if (!solvable && (DATA[i] & Mi_) && algorithm_enabled) {
         reset_mines(i);
     }
     const target_element = CELL_ELEMENTS[i];
@@ -1316,7 +1316,7 @@ function updateCursor() {
         target_element.classList.add('cursor');
     }
 }
-// Todo 2.7 - Email Copy
+// Todo 2.7 - Text Copy
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text)
         .then(() => {
