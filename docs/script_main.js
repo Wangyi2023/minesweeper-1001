@@ -969,11 +969,13 @@ function add_mine(index) {
 function activate_algorithm() {
     algorithm_enabled = true;
     update_solvability_info();
+    send_notice('alg_activated');
     console.warn("Algorithm activated.");
 }
 function deactivate_algorithm() {
     algorithm_enabled = false;
     update_solvability_info();
+    send_notice('alg_deactivated');
     console.warn("Algorithm deactivated.");
 }
 function test(i) {
@@ -1126,12 +1128,20 @@ function send_notice(type, locked = true) {
             notice_progress.style.backgroundColor = 'rgba(255, 150, 0, 1)';
             break;
         case 'reset_complete':
-            notice_text.innerHTML = "Reset Complete.";
+            notice_text.innerHTML = "Reset complete.";
             notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
             break;
         case 'reset_failed':
-            notice_text.innerHTML = "Reset Failed.";
+            notice_text.innerHTML = "Reset failed.";
             notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
+            break;
+        case 'alg_activated':
+            notice_text.innerHTML = "Algorithm activated.";
+            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
+            break;
+        case 'alg_deactivated':
+            notice_text.innerHTML = "Algorithm deactivated.";
+            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
             break;
         case 'copied':
             notice_text.innerHTML = "Email address copied to clipboard.";
