@@ -30,21 +30,20 @@ const Mi_ = 0b00010000;
 const Cv_ = 0b00100000;
 const Vs_ = 0b01000000;
 const Mk_ = 0b10000000;
-
 /*
 游戏 ID 的作用是在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断
  */
 let ID = 0;
 /*
-Stored_Hash 为激活算法的密码，在测试阶段和一些特殊情况下，例如棋盘过大导致算法卡顿而引起游戏体验变差时，我会关闭复杂算法，
-此时如果需要强行激活算法需要用到此密码
- */
-const STORED_HASH = '6db07d30';
-/*
 DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标，为满足特殊需求比如有时只需要分析上下左右的方向，我将上下左右的坐标
 放置于前4位，以方便及时截断，整体遍历顺序为顺时针方向，在延迟打开大量坐标时视觉效果很好。
  */
-
+const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
+const DY = [0, 1, 0, -1, 1, 1, -1, -1];
+/*
+这里是测试列表，在测试模式中会按照列表里的种子创建 8x8 测试棋盘，并自动打开右上角 (7, 0) 坐标
+测试通过在控制台使用 test 函数调用
+ */
 const Test = {
     1: { Mines: [[0, 0], [2, 0], [2, 1]] },
     2: { Mines: [[0, 0], [2, 0], [2, 1], [3, 0], [5, 0], [5, 1], [7, 0]] },
@@ -55,9 +54,6 @@ const Test = {
     7: { Mines: [[0, 1], [1, 0], [2, 2]] },
     8: { Mines: [[0, 0], [0, 1], [1, 0], [2, 2]] },
 }
-
-const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
-const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 
 let current_difficulty = 'high';
 
@@ -970,8 +966,7 @@ function add_mine(index) {
     }
 }
 // Todo 1.6 - Administrator Function
-function activate_algorithm(password) {
-    if (hash_x(password) !== STORED_HASH) return;
+function activate_algorithm() {
     algorithm_enabled = true;
     update_solvability_info();
     console.warn("Algorithm activated.");
@@ -980,27 +975,6 @@ function deactivate_algorithm() {
     algorithm_enabled = false;
     update_solvability_info();
     console.warn("Algorithm deactivated.");
-}
-function hash_x(input) {
-    const str = String(input);
-    let hash = 0x811C9DC5;
-    for (let i = 0; i < str.length; i++) {
-        hash ^= str.charCodeAt(i);
-        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-    }
-
-    hash ^= 0xDEADBEEF;
-    hash = (hash >>> 16) ^ (hash & 0xFFFF);
-    hash *= 0xCAFEBABE;
-    hash ^= hash >>> 15;
-    hash = Math.abs(hash);
-
-    const A = 0x6D2B79F5;
-    hash = (hash * A) >>> 0;
-    hash ^= (hash >> 5) | (hash << 27);
-    hash = (hash * 0x45D9F3B) >>> 0;
-
-    return (hash >>> 0).toString(16).padStart(8, '0');
 }
 function test(i) {
     start({test_id : i});
