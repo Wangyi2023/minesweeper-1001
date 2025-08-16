@@ -246,7 +246,7 @@ function select_cell(i) {
         first_step = false;
         start_timer();
     }
-    if (!solvable && (DATA[i] & Mi_) && algorithm_enabled) {
+    if (!solvable && (DATA[i] & Mi_)) {
         reset_mines(i);
     }
     const target_element = CELL_ELEMENTS[i];
@@ -825,6 +825,9 @@ function count_bits(bitmap) {
 }
 // Todo 1.5 - Reset Algorithm
 function reset_mines(target_mine) {
+    if (!algorithm_enabled) {
+        return
+    }
     /*
     这个函数会将输入坐标上的雷转移到其它位置，为确保移动前后所有展示出来的数字没有变化，有时实际上会移动很多关联的雷
     这个函数在调用的时候一定是 unsolvable 的状态，并且当前拥有最新计算出的 complete module collection
