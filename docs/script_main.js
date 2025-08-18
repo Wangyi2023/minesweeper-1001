@@ -3,24 +3,27 @@
 // < Part 0 - Define Global-Variables >
 
 /*
-X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信息的高密度容器 Uint8Array
-具体存储方式为，将存储 Cell 的二维矩阵扁平化为一维数组，将单个 Cell 的各项信息分别存储在 8 位中的各个部分，具体存储方式在下面表格中
-这种存储 DATA 的方式是优化到极限的，在高频访问时对缓存极其友好，并且在更改内部数据的时候全部使用位运算，速递极快
-而 CELL_ELEMENTS 只用于存储 cell_element 的索引，它无法被 Uint8Array 压缩，只能用普通数组存储
-它的作用是快速寻找到需要渲染的 cell，而不必频繁调用 querySelector
+X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信息的高密度容器，数据类型为 Uint8Array。
+具体存储方式为，将存储单个方格（Cell）的二维矩阵扁平化为一维数组，用 8 位存储单个格子的全部信息，具体存储方式在下面表格中。
+这种存储 DATA 的方式是优化到极限的，在高频访问时对缓存极其友好，并且在更改内部数据的时候全部使用位运算，速度极快。
+而 CELL_ELEMENTS 只用于存储单个方格对应的页面上的元素（div）的索引，只用于渲染游戏界面。
+它无法被 Uint8Array 压缩，只能用普通数组存储。
+它的作用是在局部更新游戏界面时快速寻找到需要渲染的方格，而不必频繁调用非常缓慢的 querySelector。
  */
 let X, Y, N, DATA, CELL_ELEMENTS;
 /*
-数据通过下面的 Mask 被压缩，通过位运算可直接获取它们的各项信息，由于 number 这一项信息的数据类型为 int，我选择把它放到最低位，
-这样只需掩码位运算就可获取到 int 以及更改它的值，如果放在高位，需要额外的左移和右移运算，并且在游戏中它的值为 0-8，因此只需要 4 bit
-的位置即可存储它的值
-而其它元素均为 boolean，可以随意放置，其中 internal-mark 是内部标记，用于内部算法计算，与 mark 外部标记不同，外部标记由玩家操控，
-用于辅助玩家完成游戏，也正是因此外部标记不需要存储到 DATA 中，而是直接存在页面中对应的 cell-div-classList 中
+下面是用 8 位存储单个方格的全部信息的方式
 ---------------------------------------------------------------------
 | internal-mark   | visited   | covered   | mine   | number (0-8)   |
 | bit 7           | bit 6     | bit 5     | bit 4  | bit 0-3        |
 ---------------------------------------------------------------------
-可通过位掩码提取各项信息，如下
+由于 number 这一项信息的数据类型为 int，我选择把它放到最低位，这样只需掩码位运算就可获取到 int 以及更改它的值。如果放在高位
+需要额外的左移和右移运算。在游戏中它的值为 0-8，因此只需要 4 bit 的位置即可存储这项信息。
+其它元素均为 boolean，随意放置不影响性能。
+其中 internal-mark 是内部标记，用于内部算法计算。与 mark 外部标记不同，外部标记由玩家操控，用于辅助玩家完成游戏，因此外部标记
+不需要存储到 DATA 中，而是以 'marked' 属性存储在 CELL_ELEMENTS 对应元素的 ClassList 中，对其的更改不会影响主要游戏数据。
+属性 visited 的唯一作用是辅助延迟打开。
+通过与掩码位运算可提取和修改它们的各项信息，如下：
 DATA[x * Y + y] & NUMBER_MASK     <-> number on the cell (x, y) is n
 DATA[x * Y + y] & MINE_MAS        <-> cell (x, y) is mine
 DATA[x * Y + y] & COVERED_MASK    <-> cell (x, y) is covered
@@ -31,28 +34,28 @@ const Cv_ = 0b00100000;
 const Vs_ = 0b01000000;
 const Mk_ = 0b10000000;
 /*
-游戏 ID 的作用是在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断
+游戏 ID 的作用是在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断。
  */
 let ID = 0;
 /*
-DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标，为满足特殊需求比如有时只需要分析上下左右的方向，我将上下左右的坐标
-放置于前4位，以方便及时截断，整体遍历顺序为顺时针方向，在延迟打开大量坐标时视觉效果很好。
+DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标。为满足特殊需求比如有时只需要分析上下左右的方向，我将上下左右的坐标
+放置于前 4 位，可快速截断。整体遍历顺序为顺时针方向，这仅仅时为了优化延迟展开的效果。
  */
 const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
 const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 /*
-这里是测试列表，在测试模式中会按照列表里的种子创建 8x8 测试棋盘，并自动打开右上角 (7, 0) 坐标
-测试通过在控制台使用 test 函数调用
+这里是测试列表，在测试模式中会按照特定种子创建 8x8 测试棋盘，并自动打开右上角 (7, 0) 坐标。
+测试通过在控制台使用 test 函数调用，以下测试主要用于检测 reset_mines 的效果。
  */
 const Test = {
-    1: { Mines: [[0, 0], [2, 0], [2, 1]] },
-    2: { Mines: [[0, 0], [2, 0], [2, 1], [3, 0], [5, 0], [5, 1], [7, 0]] },
-    3: { Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
-    4: { Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
-    5: { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
-    6: { Mines: [[0, 0], [1, 1], [2, 2]] },
-    7: { Mines: [[0, 1], [1, 0], [2, 2]] },
-    8: { Mines: [[0, 0], [0, 1], [1, 0], [2, 2]] },
+    1 : { Mines: [[0, 0], [2, 0], [2, 1]] },
+    2 : { Mines: [[0, 0], [2, 0], [2, 1], [3, 0], [5, 0], [5, 1], [7, 0]] },
+    3 : { Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
+    4 : { Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
+    5 : { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
+    6 : { Mines: [[0, 0], [1, 1], [2, 2]] },
+    7 : { Mines: [[0, 1], [1, 0], [2, 2]] },
+    8 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2]] },
 }
 
 let current_difficulty = 'high';
@@ -112,48 +115,47 @@ function start({test_id} = {}) {
         init_board_data();
     }
 
-    generate_game_field();
-    render_border();
-
     algorithm_enabled = X * Y <= ALGORITHM_LIMIT;
-    game_over = false;
-    counter_revealed = 0;
-    counter_marked = 0;
-    cursor_x = 4;
-    cursor_y = 4;
-    cursor_path = cursor_x * Y + cursor_y;
-
     module_collection = [];
     bitmap_size = Math.ceil(X * Y / 32) + 1;
     solutions = new Uint32Array(bitmap_size);
     solvable = false;
     is_solving = false;
+    game_over = false;
+    counter_revealed = 0;
+    counter_marked = 0;
+
+    cursor_x = 4;
+    cursor_y = 4;
+    cursor_path = cursor_x * Y + cursor_y;
 
     start_time = null;
     clearInterval(timer_interval);
 
+    generate_game_field();
+    render_border();
     init_information_box();
     update_solvability_info();
     updateCursor();
 }
 function init_board_data() {
     /*
-    init_board_data 函数的作用仅仅是初始化棋盘，不添加雷，目的是在玩家选择第一个格子后才通过下面的 set_mines 函数
-    确认雷的位置,实际上这个目的也可以通过重设棋盘来完成，但是它的算法量与此思路相比较大，同样的也可以在玩家选择第一个格子后
-    不断 restart 整个游戏，直到玩家选择的位置不是雷为止，这样的代码非常简单但是浪费了很多算力
+    此函数的作用仅仅是初始化棋盘，不添加雷，目的是在玩家选择第一个格子后才通过下面的 init_mines 函数确认雷的位置。
+    实际上这个目的也可以通过重设棋盘来完成，但是它的消耗量相对较大。甚至一些作者会通过在玩家选择第一个格子后不断 restart，
+    直到玩家选择的位置不是雷为止，这样的代码非常简单但是浪费了很多算力。
      */
     DATA = new Uint8Array(X * Y).fill(Cv_);
 }
-function set_mines(target_number_of_mines, position_first_click) {
+function init_mines(target_number_of_mines, position_first_click) {
     /*
-    这个函数的作用是随机摆放雷的位置，并且在输入一个赦免坐标的情况下，确保雷不会摆放到此坐标及其相邻坐标，具体思路如下
-    创建一个 Uint32Array 用作打乱后的指针列表，将赦免的坐标依次交换到数组最后，然后打乱除赦免坐标的部分，最后取前面
-    的坐标将其全部设为雷
-    注意！这里有一些优化方式，首先所谓的交换实际上是直接把后面的数字取出然后覆盖到赦免坐标的 index 上，因为最后的几个坐标是
-    需要完全忽视的，也就是 index >= size 的坐标，它们的值是无意义的，更改 size 即可将其视为无效数据
-    其次打乱的时候真正被有效打乱的是前 n 个最后需要被放置雷的坐标，其中第 i 个坐标我们会取任意一个在 [i, size) 之间的坐标
-    与之交换，这个操作截至到 size 就结束了，后面的数据只会与更靠后的数据交换，所以打乱没有意义
-    最后我们取前 n 个坐标将其全部设为雷，并同步更新每一个雷周围的元素的 number，棋盘的创建到此就彻底结束了
+    这个函数的作用是随机摆放雷的位置，position_first_click 为输入的赦免坐标，确保雷不会摆放到此坐标及其相邻坐标，方式如下：
+    创建一个 Uint32Array 用作打乱后的指针列表，将需要赦免的坐标依次交换到数组最后，然后打乱除赦免坐标的部分，最后取前 n 个坐标
+    将其全部设为雷，并同步更新每一个雷及其周围元素的信息。
+    注意这里使用了一些优化方式，首先所谓的交换实际上是直接把后面的数字取出然后覆盖到赦免坐标的 index 上，因为最后的几个坐标是
+    需要完全忽视的，也就是 index >= size 的坐标，它们的值是无意义的，更改 size 即可将其视为数组的无效数据部分。
+    其次打乱时真正被有效打乱的是前 n 个最后需要被放置雷的坐标，对于第 i 个坐标，会取任意一个在 [i, size) 之间的坐标与之交换，
+    这个操作截至到 size 就结束了，后面的数据只会与更靠后的数据交换，所以打乱没有意义。
+    其次摆放雷的时候不需要使用规范的 add_mine 函数，因为所有方格目前都在未打开状态，不需要更新渲染。
      */
     const fx = (position_first_click / Y) | 0;
     const fy = position_first_click - fx * Y;
@@ -212,11 +214,14 @@ function get_difficulty_params(difficulty) {
 }
 // Todo 1.2 - Edit Main Field
 function select_cell(i) {
+    /*
+    这是玩家层面的选择方格函数，它会对特殊情况进行特定的处理，再调用规范的 reveal_cell 函数进行打开格子。
+     */
     if (game_over || !(DATA[i] & Cv_)) {
         return;
     }
     if (first_step) {
-        set_mines(N, i);
+        init_mines(N, i);
         document.getElementById('status-info').textContent = 'In Progress';
         first_step = false;
         start_timer();
@@ -239,10 +244,10 @@ function select_cell(i) {
 }
 function reveal_linked_cells_with_delay(i, current_id) {
     /*
-    这个函数的作用是，对于点击到数字为 0 的坐标，自动打开其相邻的所有坐标，为实现动画效果，这里给需要打开的坐标加上了延时
-    而为了实现扩散效果，这里使用广度优先搜索 BFS 将需要打开的坐标加入优先队列
-    为避免 queue 中重复元素过多，去重的方式为，将添加过的坐标直接在 DATA 中标记，恰好将 DATA 中每个坐标拥有的 8 位存储
-    空间利用到极致
+    这个函数的作用是，对于点击到数字为 0 的坐标，自动打开其相邻的所有坐标，为实现动画效果，这里给需要打开的坐标加上了延时。
+    而为了实现扩散效果，这里使用广度优先搜索 BFS 将需要打开的坐标加入优先队列。
+    为避免 queue 中重复元素过多，去重的方式为，将添加过的坐标直接在 DATA 中使用 visited 标签标记。这恰好将 DATA 中每个坐标
+    拥有的 8 位存储空间利用到极致。
      */
     const queue = [i];
     DATA[i] |= Vs_;
@@ -251,6 +256,7 @@ function reveal_linked_cells_with_delay(i, current_id) {
     while (index < queue.length) {
         const j = queue[index];
         index++;
+
         if (DATA[j] & Nr_) {
             continue;
         }
@@ -268,6 +274,7 @@ function reveal_linked_cells_with_delay(i, current_id) {
             }
         }
     }
+
     let delay = 0;
     for (const j of queue) {
         setTimeout(() => {
@@ -278,9 +285,8 @@ function reveal_linked_cells_with_delay(i, current_id) {
 }
 function admin_reveal_cell(i, current_id) {
     /*
-    注意！所有 reveal cell 的行为必须通过下面的 admin_reveal_cell 函数，因为所有检测游戏状态的机制
-    和终止游戏的行为都从此函数开始，此处为分界线
-    算法也统一在此处更新，因为每次棋盘内容有变动都需要及时更新 solvability
+    注意！所有 reveal cell 的行为必须通过此 admin_reveal_cell 函数，因为所有游戏状态的检测和修改都在此函数内，此处为分界线。
+    算法也统一在此处更新，因为每次棋盘内容有变动都需要及时更新可解性（solvability）信息。
      */
     if (current_id !== ID) {
         return;
@@ -294,21 +300,18 @@ function admin_reveal_cell(i, current_id) {
         counter_marked--;
         update_marks_info();
     }
+
     DATA[i] &= ~Cv_;
     remove_cell_from_solutions(i);
     update_cell_display(i);
+    update_solvability_info();
     counter_revealed++;
+
     if (!game_over & counter_revealed === X * Y - N) {
         terminate(true);
     }
-    update_solvability_info();
 }
 function mark_cell(i) {
-    /*
-    未确保 DATA 占用内存尽可能小和集中，主算法性能尽可能高，标记 mark 这一性质不被存储在 DATA 里，标记操作（插旗）
-    不会影响游戏数据，只会更改网页中对应的 div 的性质，尤其是因为每次操作都不可避免的调用 DOM，并且每次调用都只进行
-    简单操作，因此没有任何必要在 JS 里存储标记信息
-     */
     if (game_over || !(DATA[i] & Cv_)) {
         return;
     }
@@ -361,6 +364,13 @@ function send_hint() {
     }, 2000);
 }
 function auto_mark() {
+    /*
+    自动标记与求解（Solve）和提示（Hint）不同，求解是在解的列表（solutions）中提取元素打开，但是为确保游戏不卡顿，不会在
+    玩家每次点击后都计算解，而是在 solutions 为空的时候再计算解，相当于补充库存，并且计算时会在找到一个解就及时 return，
+    不会计算出全部解。而自动标记我认为需要的是把当前所有可标记的都标记上，因此需要先计算出全部雷的位置，再标记。
+    注意！这里我一样计算的是模块集（module_collection），因为它的计算函数是万能的，在计算的过程中会顺便把所有雷的位置标记上，其目的
+    实际上只是为了缩小模块集的规模，具体详见函数段落 1.4。
+     */
     if (game_over) {
         return;
     }
@@ -368,9 +378,11 @@ function auto_mark() {
     calculate_partially_module_collection(false);
     calculate_complete_module_collection();
     for (let i = 0; i < X * Y; i++) {
-        if (DATA[i] & Mk_) {
-            if (!CELL_ELEMENTS[i].classList.contains('marked')) {
-                mark_cell(i);
+        if ((DATA[i] & Mk_) && (DATA[i] & Cv_)) {
+            const target_element = CELL_ELEMENTS[i];
+            if (!target_element.classList.contains('marked')) {
+                target_element.classList.add('marked');
+                counter_marked++;
             }
         }
     }
@@ -431,10 +443,10 @@ async function solve_all() {
 // Todo 1.4 - Algorithm Part 1
 function check_solvability() {
     /*
-    在这个函数中我们会查看 solutions 列表的大小，这个列表非空意味着有解，如果当前还无解，就不断地进行计算，
-    直到计算到 complete_module_collection 如果还没有解，那么说明当前局面是无法通过计算得出解的
-    逐步计算的目的是减轻计算机负担，因为实际上在每次玩家打开方格的时候都需要检测 solvability，如果每次以计算出所有解
-    为目的的话，会导致明显的延迟
+    在这个函数中我们会查看 solutions 列表的大小，这个列表非空意味着有解。如果当前无解，就不断地进行计算更多模块（module）
+    如果计算到完全模块集（complete_module_collection）还没有解，说明当前局面是无法通过计算得出解的。
+    逐步计算的目的是减轻计算机负担，因为实际上在每次玩家打开方格的时候都需要检测更新可解性（solvability），如果每次都以
+    计算出所有解为目的的话，会导致明显的延迟。
      */
     solvable = false;
     for (let i = 1; i < solutions.length; i++) {
@@ -461,15 +473,15 @@ function check_solvability() {
 }
 function calculate_complete_module_collection() {
     /*
-    在这个函数中我们会先标记所有的明确时雷的坐标，这个标记使用的是内部标记 internal mark，存储在 DATA 的 bit-7 位，
-    这个函数运行的条件是，仅靠 init 的 game field collection 无法继续通过内部元素的迭代计算找到解，因此在这个函数中
-    不必再迭代，而是需要手动添加一个全局 module，由于它在运算后会成为当前的所有 module 的并集的反面，因此我将其命名为
-    inverse module
-    这里我们不能将其加入到 module collection 然后继续进行内部迭代运算，因为会产生非常多的无效 module，最好的方式是像
-    下面这样先将被标记为雷的坐标排除在 inverse 之外，然后不断取 module collection 中的元素出来尝试缩小 inverse 的
-    范围，inverse 元素能提供的一个重要信息是将雷的总数加入分析列表，例如当棋盘上有 16 个不确定空格未打开，而目前只剩
-    1 个雷的位置不确定，同时还有一个 module 是 2 选 1 的状态，那么我们确定这 16 个不确定空格除去 2 选 1 的 module
-    都是安全的，这种思想在代码实现里的体现就是 inverses element
+    此函数运行的条件是，仅靠 init_module_collection 函数创建的初始模块集无法继续通过内部元素的迭代计算找到解，
+    因此在这个函数中不必再迭代，而是需要手动添加一个全局模块（inverse module），后续简称 inverse。
+
+    注意！这里我们不能将其加入模块集然后继续进行内部迭代运算，这样会产生非常多的无效模块导致卡顿，最好的方式是先将
+    被标记为雷的坐标排除在 inverse 之外，然后不断取模块集中的模块出来尝试缩小 inverse 的范围。
+    inverse 元素能提供的一个重要信息是雷的总数，这是其它模块提供不了的。例如当棋盘上有 4 个未打开且不确定的方格，
+    而目前只剩 1 个雷的位置不确定，那么创建出的初始的 inverse 就是 4 选 1 的状态，如果这时还有一个模块是 2 选 1
+    的状态，那么可以将这个模块从 inverse中剔除，更新后的 inverse 就是 2 选 0 的状态。
+    这种思想就是 inverses Element，所以我这样命名。
      */
     for (let i = 0; i < module_collection.length; i++) {
         const module = module_collection[i];
@@ -514,9 +526,11 @@ function calculate_complete_module_collection() {
 }
 function calculate_partially_module_collection(return_enabled = true) {
     /*
-    在这个函数中我们会先创建一个基础的 module_collection，遍历所有 module 让它们相互运算产生新的 module，这个函数的目的
-    是发现解，因此一旦检测到某个 module number = 0，将会直接退出循环，并且将这个 module 中所有的坐标都加入 solutions 列表
-    如果单圈循环没有创造出新的 module，也会直接退出
+    此函数是与 init_module_collection 函数配套使用的，在由对方创建的初始模块集中，遍历所有模块让它们相互运算产生新的模块。
+    此函数可以有两种用法，通过输入参数控制，默认使用方法是以发现解为目的，一旦检测到某个模块中雷数为 0，将会在把这个模块中的
+    方格全部标记为解后迅速终止计算。
+    但是有时我们需要第二种用法：以计算出所有能计算出的模块为目的。例如在自动标记（auto_mark）功能中，我的意愿就是标记所有
+    可确认的雷，那么自然会需要所有的模块。在重置雷（reset）方法中也必须用到它。
      */
     solutions = new Uint32Array(bitmap_size).fill(0);
     let saved_collection_size = 0;
@@ -543,13 +557,13 @@ function calculate_partially_module_collection(return_enabled = true) {
 }
 function init_module_collection() {
     /*
-    在这个函数中我们会先将 module_collection 的信息清空，然后添加初始元素，具体方案如下
-    我们会分析当前每个不覆盖的方格，先分析它周围的空格数量是否等于它自身的数字，如果相等将这个数字内部标记为 internal marked
-    对于被内部标记的格子，在创建 module 的时候不会考虑到它，这样可以大幅减少 module-collection 的规模
-    这个标记和创建 module 的过程实际上是同时进行的，我们会先创建一个 module，每当发现一个格子周围的 covered cells 中有一个
-    internal mark，那么就让 module 中第 0 位的 number--，并不把它添加到 module 的位图中
-    最后如果 module 中未确认的雷的数量恰好等于它的未打开的 cells 的数量，这整个 module 不仅不会被添加到 collection 里，还会
-    将内部的所有 cells 标记上，以便在创建其它 module 的时候可以不需要再次辨别
+    此函数的作用是初始化模块集。方法是如下：
+    分析当前每个不覆盖的方格，先分析它周围的空格数量是否等于它自身的数字，如果相等将这个方格进行内部标记（internal mark）
+    对于被内部标记的格子，在创建模块的时候不会考虑到它，这样可以大幅减少模块集合的规模。
+    注意！这个标记和创建模块的过程实际上是相互辅佐的，我们会先创建一个模块，每当发现数字方格周围的一个未打开方格有内部标记时，
+    不会把这个内部标记加入模块中。
+    最后如果模块中未确认的雷的数量恰好等于它的未打开的方格的数量，这个模块不仅不会被添加到模块集里，还会将其内部的所有方格进行
+    内部标记，以便在创建其它模块时可以不需要再次辨别。
      */
     module_collection = [];
     for (let index = 0; index < X * Y; index++) {
@@ -627,10 +641,12 @@ function internal_mark_cells_in_module(module) {
 }
 function process_module_pair(a, b) {
     /*
-    此函数会首先判断两个输入的 modules 的关系，并尝试生成所有可能的新 module
-    它的优化在于一次遍历直接分析出两个元素的所有关系，然后按照关系耗时依次处理，比如 disjoint 和 equals 的情况最简单
-    就会先被排除，排除后就不需要考虑 real subset 和 subset 的区别，而下一步排除了 subset 就不再需要判断
-    real intersect 和 intersect 的区别
+    此函数会分析两个输入模块的关系，并尝试生成所有可能的新模块。
+    它的优化在于一次遍历直接分析出两个元素的所有关系，然后按照关系耗时和关系出现频率依次处理，比如不相交（disjoint）和
+    相等（equals）的情况最常见和简单，可快速排除。巧妙的是排除后就不需要考虑真包含（real subset）和包含（subset）的区别，
+    而下一步排除了包含关系就不再需要判断真相交（real intersect）和相交（intersect）的区别（这里我用到的真相交是指两者相交
+    但不存在包含关系）。
+    由于模块（module）的设计是完美的，分析两个模块以及创建新模块的代码非常简单。
      */
     let equals = true;
     let a_subset_b = true;
@@ -731,7 +747,6 @@ function process_module_pair(a, b) {
         for (let i = 1; i < bitmap_size; i++) {
             module_3[i] = intersection[i];
         }
-
         return [module_1, module_2, module_3];
     }
     return [];
@@ -739,31 +754,33 @@ function process_module_pair(a, b) {
 // Todo 1.4 - Algorithm Part 1 - Module Analyse
 /*
 这里是非常重要的说明！
-Module （模块）是我自己命名的一个扫雷游戏的概念，不是公认/官方的，但在我各个版本的游戏中我都使用这个名称
-我认为这个概念在求解的过程中是必需的，也是非常高效稳定和准确的，在以它为基础的分析下可以确保所有可解的情况被判断为可解
-在我以往的代码实现中，我通常创建一个 Class，里面存放一个 int: number_of_mines 和一个 array: covered_positions，
-分别表示这个 module 中未知的雷的数量，以及这个模块包含的坐标
-我大致介绍一下它的分析方式，例如在当前棋盘上有一个数字为 1，而它周围有 3 个未打开的格子，那么我们就可以为此创建一个
-module A，它的数字为 1，positions 为上述的三个格子，我们对当前所有的数字都创建一个 module 这就是 module collection
-的初始化，假设现在有另一个 module B 和它相交，那么我们可以分析它们的关系，例如继续假设 B 是 2 选 1 的状态，并且 B 的
-格子都属于 A，也就是说 B 是 A 的真子集，那么我们就可以创建出一个新的 module C，它的 number 为两个 module A，B 的差值，
-它的 positions 为 A，B 的差集，这就是对 module collection 的扩张，更具体的算法以及优化可以查看上方的代码，下面我要
-讲的是对 module 这个结构的极端优化
+Module（模块）是我自己命名的一个扫雷游戏的概念，不是官方的/公认的，但在我各个版本的游戏中，我都使用了这个名称。
+我认为这个概念在求解的过程中是高效稳定和准确的，在以它为基础的分析下可以确保所有可解的情况被判断为可解，与另外两种方式比较：
+相较于 “计算动态概率分析” 更能解出特殊情况，相较于 “构建线性方程组求解” 更能处理大数据情况。
 
-假设我创建一个 Module 类，我将会需要频繁的调用 getter/ setter/ constructor，并且一个实例的占用空间很大，在高频调用时
-缓存压力很大。而如果用数组的形式 [n, [positions...]] 或者 [n, p1, p2, ...] 表达 module，会导致在分析两个 module 之间的
-关系时操作过多，例如使用大量循环，创建大量临时数组，更重要的是它们的存储不连续，存储内容为数字，无法通过 Uint8/16/32Array
-进行压缩。
-因此我在此游戏中使用了位图，下面是构建逻辑
-使用一些 Uint32Array 存储一个 module 的内部元素的情况，和上述存储坐标的 index 不同，位图存储的是坐标的状态，例如在 4x4 的
-棋盘中，假设 (0, 0), (0, 1) 是一个 module 的所有坐标，而 4x4 只需要占 16 bit 的内存，因此这个 module 就是一个长度为 2
-的 Uint32Array，其中 0 位存储坐标，1 位存储位图 [n, 0b0000...0011]
-对于 X * Y > 32 的情况，由于 DATA 数据已经成功扁平化，可以用多个 32 bit 的数字分段存储它的位图，因此一个游戏中所有 module
-的位图的数量在 start 函数中被计算和锁定
+在我以往的代码实现中，我通常创建一个类（Class Module），里面存储 int: number_of_mines 和 array/set: covered_positions，
+分别表示单个模块中雷的数量和方格（坐标）。
+我大致介绍一下它的分析方式，例如在当前棋盘上有一个数字为 1，而它周围有 3 个未打开的格子，那么我们就可以为此创建一个模块 A，
+它的数字为 1，方格为上述的三个格子，我们对当前每一个数字都创建一个模块，这就是模块集的初始化（init）。假设现在有另一个模块 B
+与 A 相交，那么我们可以分析它们的关系。那就继续假设 B 是 2 选 1 的状态，并且 B 的格子都属于 A，也就是说 B 是 A 的真子集，
+我们就可以创建一个新的模块 C，它的雷数为 AB 的差值（A.number - B.number），方格为差集（A.positions \ B.positions），
+这就是对模块集的扩张。
+具体的算法以及优化请查看代码，下面我要讲的是对模块这个结构的极端优化。
 
-这种存储方式最强大的不是它的节约空间，而是在分析的过程中总是使用位运算，并且可以非常快的批量处理数据，这在下面 4 个基础的
-分析 module 的函数中可以看出，以及尤其在上方把 module 中所有的坐标添加到 solutions 的函数中也可以看出
-在上方的 process_module_pair 函数中可以发现函数在逻辑清晰，代码简洁的情况下一次分析了所有的情况
+假设我创建一个类（Class Module），或者不封装用数组的形式 [n, [positions...]]，或者直接以 [n, p1, p2, ...] 表达模块，
+会导致在分析两个之间的关系时操作过多，例如使用大量循环，创建大量临时数组。更重要的是它们的存储不连续，存储内容为数字，无法通过
+Uint8/16/32Array 进行压缩。
+在此我使用了新的存储方式：使用一个 Uint32Array 存储一个模块的两个信息。和上述存储方格的索引不同，这里使用位图存储方格的状态。
+例如在 4x4 的棋盘中，(0,0), (0,1), (1,1) 是一个模块的所有方格，由于 4x4 只需要占 16 bit 的内存，只需要一个位图就可存下，
+那这个模块就是一个长度为 2 的 Uint32Array。由于方格索引在被一维压缩优化后是 0,1,4，这个模块是这样的：[n, 0b00...10011]。
+
+对于 X * Y > 32 的情况，只需用多个 32 位数字分段存储它的位图，因此一个游戏中所有模块的长度（bitmap_size）在 start 函数中
+被计算和锁定。
+
+这种存储方式最强大的不是它的节约空间，而是在分析的过程中总是使用位运算，并且可以批量处理数据，这在下面 4 个基础的
+分析模块的函数中可以看出，但我认为最大的成效是，在模块中添加和删除方格时间复杂度为 O(1)，甚至在模块中添加和删除 n 个方格，
+时间复杂度都还是 O(1)，空间消耗几乎为 0，具体请参考将模块中所有方格标记为解的函数（add_module_cells_to_solutions），为了
+让模块与解列表（solutions）无障碍接轨，解列表也是位图结构（不使用它的第 0 位）。
  */
 function equals_module(a, b) {
     for (let i = 0; i < bitmap_size; i++) {
@@ -800,13 +817,24 @@ function count_bits(bitmap) {
 }
 // Todo 1.5 - Reset Algorithm
 function reset_mines(target_mine) {
-    if (!algorithm_enabled) {
-        return
-    }
     /*
-    这个函数会将输入坐标上的雷转移到其它位置，为确保移动前后所有展示出来的数字没有变化，有时实际上会移动很多关联的雷
-    这个函数在调用的时候一定是 unsolvable 的状态，并且当前拥有最新计算出的 complete module collection
+    此函数会将输入坐标上的雷转移到其它位置，为确保移动前后所有展示出的数字没有变化，有时实际上必须移动很多关联的雷。
+    转移的方法如下：
+    首先根据当前完整的模块集，标记所有一定是雷的方格。然后重置模块集，从头开始计算完整的模块集。
+    在初始化模块集后加入假模块，它的作用是将当前的雷所在方格标记（假设）为解，然后在此基础上计算完整模块集。
+
+    我这样设计的逻辑如下：
+    假设 p0 为 target_mine 的坐标，目前被假设为解（但实际上还是雷，而我将会把这个雷删去）。接下来有两种情况：
+    1. 若计算出了新解 p1，意味着 p0 为解 -> p1 为解。在我删去 p0 这个雷时，如果 p1 位置上有雷则必须删去。
+    2. 若计算出后发现了新的内部标记 p2，意味着 p0 为解 -> p2 为雷。在我删去 p0 这个雷时，如果 p2 位置上无雷最好加上一个，
+    否则无法维持重设前后棋盘外观（保持数字不变）。
+
+    最后再以维持雷的总数为目的调整雷即可。
      */
+    if (!algorithm_enabled) {
+        return;
+    }
+
     console.warn('start reset');
     for (const module of module_collection) {
         if (module[0] > 0 && module[0] === count_bits(module)) {
@@ -819,10 +847,6 @@ function reset_mines(target_mine) {
         return false;
     }
 
-    /*
-    加入新的 fake-module 重新计算完整的 module collection，这一步可以计算出在玩家的选择下还有哪些
-    linked selection，在重置雷的位置的时候新的雷不可以加入到这里面
-     */
     init_module_collection();
     const fake_module = new Uint32Array(bitmap_size).fill(0);
     const array_position = (target_mine / 32) | 0;
@@ -868,10 +892,9 @@ function reset_mines(target_mine) {
     const current_removed = counter_removed - counter_added;
     const current_added = counter_added - counter_removed;
     if (current_removed > 0) {
-        // add removed mines
         const selections = [];
         for (let i = 0; i < X * Y; i++) {
-            if ((DATA[i] & Cv_) && !(DATA[i] & Mi_)) {
+            if ((DATA[i] & Cv_) && !(DATA[i] & Mi_) && i !== target_mine) {
                 selections.push(i);
             }
         }
@@ -892,7 +915,6 @@ function reset_mines(target_mine) {
         }
         console.warn('added ' + current_removed);
     } else if (current_added > 0) {
-        // remove added mines
         const selections = [];
         for (let i = 0; i < X * Y; i++) {
             if ((DATA[i] & Cv_) && (DATA[i] & Mi_)) {
@@ -930,6 +952,8 @@ function reset_mines(target_mine) {
             }
         }
     }
+    solutions = new Uint32Array(bitmap_size).fill(0);
+    clear_internal_mark();
 
     console.warn('reset complete');
     send_notice('reset_complete', false);
@@ -963,6 +987,11 @@ function add_mine(index) {
             DATA[i]++;
             update_cell_display(i);
         }
+    }
+}
+function clear_internal_mark() {
+    for (let i = 0; i < X * Y; i++) {
+        DATA[i] &= ~Mk_;
     }
 }
 // Todo 1.6 - Administrator Function
