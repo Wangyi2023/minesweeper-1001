@@ -386,6 +386,7 @@ function auto_mark() {
             }
         }
     }
+    update_marks_info();
 }
 function solve() {
     if (game_over) {
