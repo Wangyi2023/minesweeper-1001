@@ -44,7 +44,7 @@ DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标。�
 const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
 const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 /*
-这里是测试列表，在测试模式中会按照特定种子创建 8x8 测试棋盘，并自动打开右上角 (7, 0) 坐标。
+这里是测试列表，在测试模式中会创建 8x8 特定放置雷的测试棋盘，并自动打开右上角 (7, 0) 坐标。
 测试通过在控制台使用 test 函数调用，以下测试主要用于检测 reset_mines 的效果。
  */
 const Test = {
@@ -62,7 +62,7 @@ let current_difficulty = 'high';
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
-const ALGORITHM_LIMIT = 480;
+const ALGORITHM_LIMIT = 2400;
 const DELAY = 5;
 const TIMEOUT = 4500;
 
@@ -372,6 +372,10 @@ function auto_mark() {
     实际上只是为了缩小模块集的规模，具体详见函数段落 1.4。
      */
     if (game_over) {
+        return;
+    }
+    if (!algorithm_enabled) {
+        send_notice('n_enabled');
         return;
     }
     init_module_collection();
