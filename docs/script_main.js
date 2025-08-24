@@ -45,7 +45,7 @@ const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
 const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 /*
 这里是测试列表，在测试模式中会创建 8x8 特定放置雷的测试棋盘，并自动打开右上角 (7, 0) 坐标。
-测试通过在控制台使用 test 函数调用，以下测试主要用于检测 reset_mines 的效果。
+测试通过在控制台使用 test 函数调用，以下测试主要用于检测 reset_mines 功能。
  */
 const Test = {
     1 : { Mines: [[0, 0], [2, 0], [2, 1]] },
@@ -58,13 +58,13 @@ const Test = {
     8 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2]] },
 }
 
-let current_difficulty = 'high';
-
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
 const ALGORITHM_LIMIT = 2400;
 const DELAY = 5;
 const TIMEOUT = 4500;
+
+let current_difficulty = 'high';
 
 let first_step = true;
 let game_over = false;
