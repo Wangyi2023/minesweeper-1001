@@ -125,8 +125,8 @@ function start({test_id} = {}) {
     counter_revealed = 0;
     counter_marked = 0;
 
-    cursor_x = 4;
-    cursor_y = 4;
+    cursor_x = (X / 3) | 0;
+    cursor_y = (Y / 3) | 0;
     cursor_path = cursor_x * Y + cursor_y;
 
     start_time = null;
