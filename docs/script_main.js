@@ -307,7 +307,7 @@ function admin_reveal_cell(i, current_id) {
     update_solvability_info();
     counter_revealed++;
 
-    if (!game_over & counter_revealed === X * Y - N) {
+    if (!game_over && counter_revealed === X * Y - N) {
         terminate(true);
     }
 }
@@ -796,14 +796,14 @@ function equals_module(a, b) {
     return true;
 }
 function bitwise_intersection(a, b) {
-    const result = Array(bitmap_size).fill(0);
+    const result = new Uint32Array(bitmap_size).fill(0);
     for (let i = 1; i <bitmap_size; i++) {
         result[i] = a[i] & b[i];
     }
     return result;
 }
 function bitwise_difference(a, b) {
-    const result = Array(bitmap_size).fill(0);
+    const result = new Uint32Array(bitmap_size).fill(0);
     for (let i = 1; i < bitmap_size; i++) {
         result[i] = a[i] & ~b[i];
     }
