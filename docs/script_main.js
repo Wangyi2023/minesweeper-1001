@@ -62,7 +62,9 @@ const Test = {
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
-const ALGORITHM_LIMIT = 2400;
+const ALGORITHM_LIMIT = 4800;
+const ANIMATION_LIMIT = 1600;
+const NOTICE_TIME_LIMIT = 800;
 const DELAY = 5;
 const TIMEOUT = 4500;
 
@@ -120,7 +122,13 @@ function start({test_id} = {}) {
         init_board_data();
     }
 
-    algorithm_enabled = X * Y <= ALGORITHM_LIMIT;
+    if (X * Y <= ALGORITHM_LIMIT) {
+        algorithm_enabled = true;
+    } else {
+        algorithm_enabled = false;
+        send_notice("algorithm_off");
+    }
+
     module_collection = [];
     bitmap_size = Math.ceil(X * Y / 32) + 1;
     solutions = new Uint32Array(bitmap_size);
@@ -1152,12 +1160,14 @@ function format_number(n) {
     return '?';
 }
 function play_opening_animation() {
+    if (X * Y > ANIMATION_LIMIT) {
+        send_notice("animation_off");
+        return;
+    }
     animation_timers = []
     hide_all_cells();
 
-    let max_delay = Math.min(1000, Y * 16);
-    let delays = Array(((Y + 1) / 2) | 0).fill(0);
-
+    const max_delay = Math.min(1000, Y * 16);
     let delay = max_delay;
     let left_pivot = 0;
     let right_pivot = Y - 1;
@@ -1171,7 +1181,7 @@ function play_opening_animation() {
         }, current_delay);
         animation_timers.push(timer);
 
-        delay *= 0.9;
+        delay = (delay * 0.9 + 1) | 0;
         left_pivot++;
         right_pivot--;
     }
@@ -1294,7 +1304,7 @@ function update_solvability_info() {
 function send_notice(type, locked = true) {
     const now = Date.now();
     if (locked) {
-        if (locked && now - last_notice_time < 600) {
+        if (locked && now - last_notice_time < NOTICE_TIME_LIMIT) {
             return;
         }
         last_notice_time = now;
@@ -1338,15 +1348,23 @@ function send_notice(type, locked = true) {
             break;
         case 'test_start':
             notice_text.innerHTML = "Test Mode Activated.<br>Sidebar closed, shortcuts disabled.";
-            notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
+            notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
             break;
         case 'test_end':
             notice_text.innerHTML = "Test Mode Deactivated.<br>Sidebar open, shortcuts enabled";
-            notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
+            notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
             break;
         case 'copied':
             notice_text.innerHTML = "Email address copied to clipboard.";
-            notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
+            notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
+            break;
+        case 'algorithm_off':
+            notice_text.innerHTML = "Algorithm OFF.<br>Algorithm off due to large board size.";
+            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
+            break;
+        case 'animation_off':
+            notice_text.innerHTML = "Animation OFF.<br>Animation off due to large board size.";
+            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
             break;
         default:
             notice_text.innerHTML = "Notice.<br>Default Notice Content - 1024 0010 0024.";
