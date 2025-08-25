@@ -73,6 +73,7 @@ let first_step = true;
 let game_over = false;
 let is_solving = false;
 
+let animation_timers = [];
 let start_time = null;
 let timer_interval = null;
 let last_notice_time = 0;
@@ -95,6 +96,7 @@ let solvable = false;
 // Todo 1.1 - Init
 function start({test_id} = {}) {
     ID++;
+    clear_all_animation_timers();
 
     if (test_id) {
         const params = Test[test_id];
@@ -140,6 +142,7 @@ function start({test_id} = {}) {
     init_information_box();
     update_solvability_info();
     updateCursor();
+    play_opening_animation();
 }
 function init_board_data() {
     /*
@@ -1147,6 +1150,83 @@ function format_number(n) {
         return String.fromCharCode(65 + (n - 10));
     }
     return '?';
+}
+function play_opening_animation() {
+    animation_timers = []
+    hide_all_cells();
+
+    let max_delay = Math.min(1000, Y * 16);
+    let delays = Array(((Y + 1) / 2) | 0).fill(0);
+    let index = 0;
+    delays[0] = max_delay;
+    for (let i = 1; i < delays.length; i++) {
+        delays[i] = (delays[i - 1] * 0.9) | 0;
+    }
+
+    let left_pivot = 0;
+    let right_pivot = Y - 1;
+    while (left_pivot <= right_pivot) {
+        const current_left = left_pivot;
+        const current_right = right_pivot;
+        const current_delay = delays[index];
+
+        const timer = setTimeout(() => {
+            animate_double_columns(current_left, current_right);
+        }, current_delay);
+        animation_timers.push(timer);
+
+        index++;
+        left_pivot++;
+        right_pivot--;
+    }
+
+    const end_timer = setTimeout(() => {
+        cleanup_animation();
+        clear_all_animation_timers();
+    }, max_delay + 100);
+    animation_timers.push(end_timer);
+}
+function animate_double_columns(left, right) {
+    if (left === right) {
+        for (let x = 0; x < X; x++) {
+            const cell = CELL_ELEMENTS[x * Y + left];
+            cell.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            cell.style.opacity = '1';
+            cell.style.transform = 'scale(1)';
+        }
+    } else {
+        for (let x = 0; x < X; x++) {
+            const cell_left = CELL_ELEMENTS[x * Y + left];
+            const cell_right = CELL_ELEMENTS[x * Y + right];
+            cell_left.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            cell_right.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            cell_left.style.opacity = '1';
+            cell_right.style.opacity = '1';
+            cell_left.style.transform = 'scale(1)';
+            cell_right.style.transform = 'scale(1)';
+        }
+    }
+}
+function hide_all_cells() {
+    for (let i = 0; i < X * Y; i++) {
+        const cell = CELL_ELEMENTS[i];
+        cell.style.opacity = '0';
+        cell.style.transform = 'scale(0.2)';
+        cell.style.transition = 'none';
+        cell.style.willChange = 'opacity, transform';
+    }
+}
+function clear_all_animation_timers() {
+    animation_timers.forEach(timer => {
+        clearTimeout(timer);
+        clearInterval(timer);
+    });
+    animation_timers = [];
+}
+function cleanup_animation() {
+    for (let i = 0; i < X * Y; i++) {
+        CELL_ELEMENTS[i].style.willChange = 'auto';
+    }
 }
 // Todo 2.2 - Edit Game Status
 function set_difficulty(difficulty) {
