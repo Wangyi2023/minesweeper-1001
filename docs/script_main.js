@@ -305,8 +305,8 @@ function admin_reveal_cell(i, current_id) {
     }
 
     DATA[i] &= ~Cv_;
-    remove_cell_from_solutions(i);
     update_cell_display(i);
+    remove_cell_from_solutions(i);
     update_solvability_info();
     counter_revealed++;
 
@@ -1030,7 +1030,6 @@ function start_test(i) {
     current_test_id = i;
     start({test_id : i});
     update_test_selection();
-    send_notice('test_start', false);
 }
 function update_test_selection() {
     document.querySelectorAll('.test-option:not(.exit)').forEach(option => {
@@ -1067,6 +1066,7 @@ function test() {
         exit_test();
     };
     container.appendChild(exit_test_button);
+    send_notice('test_start', false);
     start_test(current_test_id);
 }
 function exit_test() {
@@ -1233,15 +1233,15 @@ function send_notice(type, locked = true) {
     notice_progress.classList.add('notice-progress');
     switch (type) {
         case 'congrats':
-            notice_text.innerHTML = "Congratulations.<br> You've successfully completed Minesweeper.";
+            notice_text.innerHTML = "Congratulations.<br>You've successfully completed Minesweeper.";
             notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
             break;
         case 'failed':
-            notice_text.innerHTML = "Failed.<br> You triggered a mine.";
+            notice_text.innerHTML = "Failed.<br>You triggered a mine.";
             notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
             break;
         case 'n_enabled':
-            notice_text.innerHTML = "Warning.<br> Algorithm was not activated.";
+            notice_text.innerHTML = "Warning.<br>Algorithm was not activated.";
             notice_progress.style.backgroundColor = 'rgba(255, 150, 0, 1)';
             break;
         case 'reset_complete':
@@ -1261,11 +1261,11 @@ function send_notice(type, locked = true) {
             notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
             break;
         case 'test_start':
-            notice_text.innerHTML = "Test Mode Activated.";
+            notice_text.innerHTML = "Test Mode Activated.<br>Sidebar closed, shortcuts disabled.";
             notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
             break;
         case 'test_end':
-            notice_text.innerHTML = "Test Mode Deactivated.";
+            notice_text.innerHTML = "Test Mode Deactivated.<br>Sidebar open, shortcuts enabled";
             notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
             break;
         case 'copied':
@@ -1273,7 +1273,7 @@ function send_notice(type, locked = true) {
             notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
             break;
         default:
-            notice_text.innerHTML = "Notice.<br> Default Notice Content - 1024 0010 0024.";
+            notice_text.innerHTML = "Notice.<br>Default Notice Content - 1024 0010 0024.";
             notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
             break;
     }
