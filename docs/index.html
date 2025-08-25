@@ -74,7 +74,7 @@
                 <div id="background-menu" class="dropdown-menu" style="display: none">
                     <div class="option-row" >
                         <div class="option" onclick="set_background('default.jpg')">Default</div>
-                        <div class="option" onclick="set_background('01.jpg')">01</div>
+                        <div class="option" onclick="set_background('01.jpg', `light`)">01</div>
                     </div>
                     <div class="option-row" >
                         <div class="option" onclick="set_background('02.jpg')">02</div>
@@ -112,9 +112,12 @@
 <!-- Main Content -->
 <div class="main-content">
     <div class="header">
-        <h1>
-            <img src="Image/minesweeper_title.png" alt="title" id="title-img" onclick="start()">
-        </h1>
+        <div class="title-container" id="title-dark">
+            <img src="Image/minesweeper_title_dark.png" class="title-img" alt="title" id="title-img-dark" onclick="start()">
+        </div>
+        <div class="title-container" id="title-light" style="display: none;">
+            <img src="Image/minesweeper_title_light.png" class="title-img" alt="title" id="title-img-light" onclick="start()">
+        </div>
     </div>
     <div id="board-wrapper" class="board-wrapper">
         <div id="board"></div>

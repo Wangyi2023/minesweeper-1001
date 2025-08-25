@@ -56,6 +56,8 @@ const Test = {
     6 : { Mines: [[0, 0], [1, 1], [2, 2]] },
     7 : { Mines: [[0, 1], [1, 0], [2, 2]] },
     8 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2]] },
+    9 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
+    10 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
 }
 
 const CELL_SIZE = 24;
@@ -863,6 +865,11 @@ function reset_mines(target_mine) {
 
     const COPY = new Uint32Array(DATA);
 
+    let removed_candidate_list_1 = `   `;
+    let added_candidate_list_1 = `   `;
+    let removed_candidate_list_2 = `   `;
+    let added_candidate_list_2 = `   `;
+
     let counter_removed = 0;
     for (let array_position = 1; array_position < bitmap_size; array_position++) {
         for (let bit_position = 0; bit_position < 32; bit_position++) {
@@ -870,21 +877,27 @@ function reset_mines(target_mine) {
                 const index = (array_position - 1) * 32 + bit_position;
                 if (DATA[index] & Mi_) {
                     remove_mine(index);
+                    const ix = (index / Y) | 0;
+                    const iy = index - ix * Y
+                    removed_candidate_list_1 += `[${ix},${iy}] `
                     counter_removed++;
                 }
             }
         }
     }
-    console.warn('removed ' + counter_removed);
+    console.warn(`1.Phase removed ${counter_removed}: \n` + removed_candidate_list_1);
 
     let counter_added = 0;
-    for (let i = 0; i < X * Y; i++) {
-        if ((DATA[i] & Mk_) && !(DATA[i] & Mi_)) {
-            add_mine(i);
+    for (let index = 0; index < X * Y; index++) {
+        if ((DATA[index] & Mk_) && !(DATA[index] & Mi_)) {
+            add_mine(index);
+            const ix = (index / Y) | 0;
+            const iy = index - ix * Y
+            added_candidate_list_1 += `[${ix},${iy}] `
             counter_added++;
         }
     }
-    console.warn('added ' + counter_added);
+    console.warn(`1.Phase added ${counter_removed}: \n` + added_candidate_list_1);
 
     const current_removed = counter_removed - counter_added;
     const current_added = counter_added - counter_removed;
@@ -908,9 +921,13 @@ function reset_mines(target_mine) {
             selections[rj] = temp;
         }
         for (let i = 0; i < current_removed; i++) {
-            add_mine(selections[i]);
+            const index = selections[i];
+            const ix = (index / Y) | 0;
+            const iy = index - ix * Y
+            added_candidate_list_2 += `[${ix},${iy}] `
+            add_mine(index);
         }
-        console.warn('added ' + current_removed);
+        console.warn(`2.Phase added ${current_removed}: \n` + added_candidate_list_2);
     } else if (current_added > 0) {
         const selections = [];
         for (let i = 0; i < X * Y; i++) {
@@ -931,9 +948,13 @@ function reset_mines(target_mine) {
             selections[rj] = temp;
         }
         for (let i = 0; i < current_added; i++) {
-            remove_mine(selections[i]);
+            const index = selections[i];
+            const ix = (index / Y) | 0;
+            const iy = index - ix * Y
+            removed_candidate_list_2 += `[${ix},${iy}] `
+            remove_mine(index);
         }
-        console.warn('removed ' + current_added);
+        console.warn(`2.Phase removed ${current_added}: \n` + removed_candidate_list_2);
     }
 
     for (let i = 0; i < X * Y; i++) {
@@ -1070,8 +1091,15 @@ function set_difficulty(difficulty) {
     start();
     close_difficulty_menu();
 }
-function set_background(filename) {
+function set_background(filename, title_image = `dark`) {
     document.documentElement.style.setProperty('--background-url', `url("Background_Collection/${filename}")`);
+    if (title_image === `light`) {
+        document.getElementById("title-dark").style.display = `none`;
+        document.getElementById("title-light").style.display = `block`;
+    } else {
+        document.getElementById("title-dark").style.display = `block`;
+        document.getElementById("title-light").style.display = `none`;
+    }
     close_background_menu();
 }
 // Todo 2.3 - Update Game Information

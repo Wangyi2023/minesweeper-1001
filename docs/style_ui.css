@@ -42,13 +42,13 @@ body::before {
     margin-bottom: 15px;
     width: 100%;
 }
-h1 {
+.title-container {
     text-align: center;
     margin-top: 16px;
     margin-bottom: 8px;
     user-select: none;
 }
-h1 img {
+.title-img {
     width: 400px;
     height: auto;
     display: inline-block;
