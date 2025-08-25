@@ -104,6 +104,7 @@ h2 {
     font-size: 22px;
     margin-right: -16px;
     position: relative;
+    user-select: none;
 }
 .collapse-handle::after {
     content: "";
@@ -128,6 +129,7 @@ body.sidebar-collapsed .sidebar {
     z-index: 90;
     opacity: 0;
     pointer-events: none;
+    user-select: none;
 }
 body.sidebar-collapsed .expand-button {
     opacity: 1;

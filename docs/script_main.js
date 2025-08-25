@@ -67,6 +67,7 @@ const DELAY = 5;
 const TIMEOUT = 4500;
 
 let current_difficulty = 'high';
+let current_test_id = null;
 
 let first_step = true;
 let game_over = false;
@@ -77,7 +78,6 @@ let timer_interval = null;
 let last_notice_time = 0;
 
 let algorithm_enabled = true;
-let shortcuts_enabled = true;
 let cursor_enabled = false;
 
 let counter_revealed, counter_marked;
@@ -1027,13 +1027,26 @@ function deactivate_algorithm() {
     console.warn("Algorithm deactivated.");
 }
 function start_test(i) {
+    current_test_id = i;
     start({test_id : i});
+    update_test_selection();
+    send_notice('test_start', false);
+}
+function update_test_selection() {
+    document.querySelectorAll('.test-option:not(.exit)').forEach(option => {
+        const testId = option.textContent.trim();
+        if (testId === format_number(current_test_id)) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
 }
 function test() {
     if (!document.body.classList.contains('sidebar-collapsed')) {
         toggle_sidebar();
     }
-    shortcuts_enabled = false;
+    current_test_id = 1;
     document.getElementById(`main-test-container`).style.display = 'flex';
     const container = document.getElementById("test-container");
     container.innerHTML = '';
@@ -1054,10 +1067,11 @@ function test() {
         exit_test();
     };
     container.appendChild(exit_test_button);
-    start_test(1);
+    start_test(current_test_id);
 }
 function exit_test() {
-    shortcuts_enabled = true;
+    current_test_id = null;
+    send_notice('test_end', false);
     if (document.body.classList.contains('sidebar-collapsed')) {
         toggle_sidebar();
     }
@@ -1231,20 +1245,28 @@ function send_notice(type, locked = true) {
             notice_progress.style.backgroundColor = 'rgba(255, 150, 0, 1)';
             break;
         case 'reset_complete':
-            notice_text.innerHTML = "Reset complete.";
+            notice_text.innerHTML = "Reset Complete.";
             notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
             break;
         case 'reset_failed':
-            notice_text.innerHTML = "Reset failed.";
+            notice_text.innerHTML = "Reset Failed.";
             notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
             break;
         case 'alg_activated':
-            notice_text.innerHTML = "Algorithm activated.";
+            notice_text.innerHTML = "Algorithm Activated.";
             notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
             break;
         case 'alg_deactivated':
-            notice_text.innerHTML = "Algorithm deactivated.";
+            notice_text.innerHTML = "Algorithm Deactivated.";
             notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
+            break;
+        case 'test_start':
+            notice_text.innerHTML = "Test Mode Activated.";
+            notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
+            break;
+        case 'test_end':
+            notice_text.innerHTML = "Test Mode Deactivated.";
+            notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
             break;
         case 'copied':
             notice_text.innerHTML = "Email address copied to clipboard.";
@@ -1275,7 +1297,7 @@ function send_notice(type, locked = true) {
     }, TIMEOUT);
 }
 function handle_keydown(event) {
-    if (!shortcuts_enabled) {
+    if (current_test_id !== null) {
         return;
     }
     const key = event.key.toLowerCase();
@@ -1344,7 +1366,7 @@ function handle_keydown(event) {
 }
 // Todo 2.5 - Sidebar
 function toggle_sidebar() {
-    if (!shortcuts_enabled) {
+    if (current_test_id !== null) {
         return;
     }
     document.body.classList.toggle('sidebar-collapsed');
