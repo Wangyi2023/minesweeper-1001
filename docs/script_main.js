@@ -1464,10 +1464,20 @@ function send_test_result_notice(text) {
     container.appendChild(test_result_notice);
 }
 function handle_keydown(event) {
+    const key = event.key.toLowerCase();
+
     if (current_test_id !== null) {
+        switch (key) {
+            case 'r':
+                start_test(current_test_id);
+                return;
+            case 'escape':
+                exit_test();
+                return;
+        }
         return;
     }
-    const key = event.key.toLowerCase();
+
     switch (key) {
         case 'escape':
             hide_guide();
