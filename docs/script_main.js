@@ -971,8 +971,8 @@ function reset_mines(target_mine) {
             }
         }
     }
-    solutions = new Uint32Array(bitmap_size).fill(0);
     clear_internal_mark();
+    update_solvability_info();
 
     console.warn('reset complete');
     send_notice('reset_complete', false);
