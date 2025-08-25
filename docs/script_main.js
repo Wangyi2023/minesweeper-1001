@@ -1142,6 +1142,7 @@ function test() {
     if (!document.body.classList.contains('sidebar-collapsed')) {
         toggle_sidebar();
     }
+    cursor_enabled = false;
     current_test_id = 1;
     document.getElementById(`main-test-container`).style.display = 'flex';
     const container = document.getElementById("test-container");
