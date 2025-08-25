@@ -902,7 +902,6 @@ function reset_mines(target_mine) {
     if (!algorithm_enabled) {
         return;
     }
-    const current_time = format_time(Date.now());
 
     let test_result_text = '';
 
