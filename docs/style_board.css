@@ -41,7 +41,7 @@
     transition: none;
 }
 .cell.revealed {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.4);
     animation: cellReveal 0.2s ease-out forwards;
 }
 .cell.mine {

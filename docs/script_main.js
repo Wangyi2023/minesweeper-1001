@@ -76,7 +76,8 @@ let start_time = null;
 let timer_interval = null;
 let last_notice_time = 0;
 
-let algorithm_enabled = false;
+let algorithm_enabled = true;
+let shortcuts_enabled = true;
 let cursor_enabled = false;
 
 let counter_revealed, counter_marked;
@@ -1025,8 +1026,44 @@ function deactivate_algorithm() {
     send_notice('alg_deactivated');
     console.warn("Algorithm deactivated.");
 }
-function test(i) {
+function start_test(i) {
     start({test_id : i});
+}
+function test() {
+    if (!document.body.classList.contains('sidebar-collapsed')) {
+        toggle_sidebar();
+    }
+    shortcuts_enabled = false;
+    document.getElementById(`main-test-container`).style.display = 'flex';
+    const container = document.getElementById("test-container");
+    container.innerHTML = '';
+    container.style.display = 'grid';
+    for (const key of Object.keys(Test)) {
+        const test_option = document.createElement('div');
+        test_option.classList.add('test-option');
+        test_option.innerHTML = `${format_number(key)}`;
+        test_option.onclick = () => {
+            start_test(key);
+        };
+        container.appendChild(test_option);
+    }
+    const exit_test_button = document.createElement('div');
+    exit_test_button.classList.add('test-option', 'exit');
+    exit_test_button.innerHTML = 'Exit';
+    exit_test_button.onclick = () => {
+        exit_test();
+    };
+    container.appendChild(exit_test_button);
+    start_test(1);
+}
+function exit_test() {
+    shortcuts_enabled = true;
+    if (document.body.classList.contains('sidebar-collapsed')) {
+        toggle_sidebar();
+    }
+    document.getElementById("test-container").innerHTML = '';
+    document.getElementById(`main-test-container`).style.display = `none`;
+    start();
 }
 
 
@@ -1084,6 +1121,18 @@ function generate_game_field() {
         board_element.appendChild(div);
         CELL_ELEMENTS[i] = div;
     }
+}
+function format_number(n) {
+    if (n === 0) {
+        return ' ';
+    }
+    if (n >= 1 && n <= 9) {
+        return n.toString();
+    }
+    if (n >= 10 && n <= 35) {
+        return String.fromCharCode(65 + (n - 10));
+    }
+    return '?';
 }
 // Todo 2.2 - Edit Game Status
 function set_difficulty(difficulty) {
@@ -1226,6 +1275,9 @@ function send_notice(type, locked = true) {
     }, TIMEOUT);
 }
 function handle_keydown(event) {
+    if (!shortcuts_enabled) {
+        return;
+    }
     const key = event.key.toLowerCase();
     switch (key) {
         case 'escape':
@@ -1251,13 +1303,17 @@ function handle_keydown(event) {
         case 'h':
             send_hint();
             break;
+        case 't':
+            if (event.shiftKey) { test(); }
+            break;
         case '0':
             solve();
             break;
     }
 
-    if (!cursor_enabled) return;
-
+    if (!cursor_enabled) {
+        return;
+    }
     const step = event.shiftKey ? 4 : 1;
     cursor_path = cursor_x * Y + cursor_y;
     switch (key) {
@@ -1288,8 +1344,10 @@ function handle_keydown(event) {
 }
 // Todo 2.5 - Sidebar
 function toggle_sidebar() {
+    if (!shortcuts_enabled) {
+        return;
+    }
     document.body.classList.toggle('sidebar-collapsed');
-    localStorage.setItem('sidebarCollapsed', document.body.classList.contains('sidebar-collapsed').toString());
 
     close_difficulty_menu();
     close_background_menu();
