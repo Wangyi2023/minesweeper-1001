@@ -46,6 +46,7 @@
 }
 .cell.mine {
     position: relative;
+    z-index: 5000;
     background-color: rgba(255, 0, 0, 0.2);
 }
 .cell.mine::before {

@@ -370,13 +370,13 @@ body.sidebar-collapsed .expand-button {
 .test-option.selected::after {
     content: "";
     position: absolute;
-    bottom: 5px; /* 调整下划线与文字的距离 */
+    bottom: 5px;
     left: 50%;
     transform: translateX(-50%);
-    width: 20%; /* 下划线的长度，可调整 */
-    height: 4px; /* 下划线粗细 */
-    border-radius: 2px;
-    background-color: black; /* 下划线颜色 */
+    width: 20%;
+    height: 4px;
+    border-radius: 1px;
+    background-color: rgba(0, 0, 0, 1);
 }
 
 

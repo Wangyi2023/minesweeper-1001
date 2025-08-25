@@ -59,6 +59,63 @@ const Test = {
     9 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
     10 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
 }
+/*
+这里是消息，普通消息的内容和进度条的颜色在此确认。
+ */
+const NOTICE_CONFIG = {
+    congrats: {
+        text: "Congratulations.<br>You've successfully completed Minesweeper.",
+        color: 'rgba(0, 220, 80, 1)'
+    },
+    failed: {
+        text: "Failed.<br>You triggered a mine.",
+        color: 'rgba(255, 20, 53, 1)'
+    },
+    n_enabled: {
+        text: "Warning.<br>Algorithm was not activated.",
+        color: 'rgba(255, 150, 0, 1)'
+    },
+    reset_complete: {
+        text: "Reset Complete.",
+        color: 'rgba(0, 220, 80, 1)'
+    },
+    reset_failed: {
+        text: "Reset Failed.",
+        color: 'rgba(255, 20, 53, 1)'
+    },
+    alg_activated: {
+        text: "Algorithm Activated.",
+        color: 'rgba(255, 230, 0, 1)'
+    },
+    alg_deactivated: {
+        text: "Algorithm Deactivated.",
+        color: 'rgba(255, 230, 0, 1)'
+    },
+    test_start: {
+        text: "Test Mode Activated.<br>Sidebar closed, shortcuts disabled.",
+        color: 'rgba(0, 150, 255, 1)'
+    },
+    test_end: {
+        text: "Test Mode Deactivated.<br>Sidebar open, shortcuts enabled",
+        color: 'rgba(0, 150, 255, 1)'
+    },
+    copied: {
+        text: "Hint.<br>Email address copied to clipboard.",
+        color: 'rgba(0, 150, 255, 1)'
+    },
+    algorithm_off: {
+        text: "Algorithm OFF.<br>Algorithm off due to large board size.",
+        color: 'rgba(255, 230, 0, 1)'
+    },
+    animation_off: {
+        text: "Animation OFF.<br>Animation off due to large board size.",
+        color: 'rgba(255, 230, 0, 1)'
+    },
+    default: {
+        text: "Notice.<br>Default Notice Content - 1024 0010 0024.",
+        color: 'rgba(0, 150, 255, 1)'
+    }
+};
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
@@ -845,8 +902,13 @@ function reset_mines(target_mine) {
     if (!algorithm_enabled) {
         return;
     }
+    const current_time = format_time(Date.now());
 
-    console.warn('start reset');
+    let test_result_text = '';
+
+    const text_1 = 'Reset Algorithm Activated.';
+    test_result_text += text_1 + '<br>';
+    console.warn(text_1);
     for (const module of module_collection) {
         if (module[0] > 0 && module[0] === count_bits(module)) {
             internal_mark_cells_in_module(module);
@@ -854,7 +916,11 @@ function reset_mines(target_mine) {
     }
 
     if (DATA[target_mine] & Mk_) {
-        console.warn('100% mine');
+        const text_2 = 'Clicked a cell that is definitely a mine'
+        test_result_text += text_2 + '<br>';
+        console.warn(text_2);
+
+        send_test_result_notice(test_result_text);
         return false;
     }
 
@@ -897,7 +963,9 @@ function reset_mines(target_mine) {
             }
         }
     }
-    console.warn(`1.Phase removed ${counter_removed}: \n` + removed_candidate_list_1);
+    const text_3 = `1.Phase removed ${counter_removed}: <br>${removed_candidate_list_1}`
+    test_result_text += text_3 + '<br>'
+    console.warn(text_3);
 
     let counter_added = 0;
     for (let index = 0; index < X * Y; index++) {
@@ -909,7 +977,9 @@ function reset_mines(target_mine) {
             counter_added++;
         }
     }
-    console.warn(`1.Phase added ${counter_removed}: \n` + added_candidate_list_1);
+    const text_4 = `1.Phase added ${counter_added}: <br>${added_candidate_list_1}`
+    test_result_text += text_4 + '<br>'
+    console.warn(text_4);
 
     const current_removed = counter_removed - counter_added;
     const current_added = counter_added - counter_removed;
@@ -922,8 +992,12 @@ function reset_mines(target_mine) {
         }
         if (selections.length < current_removed) {
             DATA.set(COPY);
-            console.warn('reset failed');
+            const text_5 = 'reset failed';
+            test_result_text += text_5 + '<br>';
+            console.warn(text_5);
+
             send_notice('reset_failed', false);
+            send_test_result_notice(test_result_text);
             return false;
         }
         for (let i = 0; i < current_removed; i++) {
@@ -939,7 +1013,9 @@ function reset_mines(target_mine) {
             added_candidate_list_2 += `[${ix},${iy}] `
             add_mine(index);
         }
-        console.warn(`2.Phase added ${current_removed}: \n` + added_candidate_list_2);
+        const text_7 = `2.Phase added ${current_removed}: <br>${added_candidate_list_2}`
+        test_result_text += text_7 + '<br>'
+        console.warn(text_7);
     } else if (current_added > 0) {
         const selections = [];
         for (let i = 0; i < X * Y; i++) {
@@ -949,8 +1025,12 @@ function reset_mines(target_mine) {
         }
         if (selections.length < current_added) {
             DATA.set(COPY);
-            console.warn('reset failed');
+            const text_6 = 'reset failed';
+            test_result_text += text_6 + '<br>';
+            console.warn(text_6);
+
             send_notice('reset_failed', false);
+            send_test_result_notice(test_result_text);
             return false;
         }
         for (let i = 0; i < current_added; i++) {
@@ -966,7 +1046,9 @@ function reset_mines(target_mine) {
             removed_candidate_list_2 += `[${ix},${iy}] `
             remove_mine(index);
         }
-        console.warn(`2.Phase removed ${current_added}: \n` + removed_candidate_list_2);
+        const text_8 = `2.Phase removed ${current_added}: <br>${removed_candidate_list_2}`
+        test_result_text += text_8 + '<br>'
+        console.warn(text_8);
     }
 
     for (let i = 0; i < X * Y; i++) {
@@ -985,8 +1067,12 @@ function reset_mines(target_mine) {
     clear_internal_mark();
     update_solvability_info();
 
-    console.warn('reset complete');
+    const text_end = 'reset complete';
+    test_result_text += text_end + '<br>';
+    console.warn(text_end);
+
     send_notice('reset_complete', false);
+    send_test_result_notice(test_result_text);
     return true;
 }
 function remove_mine(index) {
@@ -1159,6 +1245,16 @@ function format_number(n) {
     }
     return '?';
 }
+function format_time(timestamp) {
+    let date = new Date(timestamp);
+    let Y = date.getFullYear();
+    let M = String(date.getMonth() + 1).padStart(2, '0');
+    let D = String(date.getDate()).padStart(2, '0');
+    let h = String(date.getHours()).padStart(2, '0');
+    let m = String(date.getMinutes()).padStart(2, '0');
+    let s = String(date.getSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s} / ${Y}.${M}.${D}`;
+}
 function play_opening_animation() {
     if (X * Y > ANIMATION_LIMIT) {
         send_notice("animation_off");
@@ -1310,76 +1406,31 @@ function send_notice(type, locked = true) {
         last_notice_time = now;
     }
 
+    const { text, color } = NOTICE_CONFIG[type] || NOTICE_CONFIG.default;
+
     const container = document.getElementById('notice-container');
     const notice = document.createElement('div');
     const notice_text = document.createElement('div');
     const notice_progress = document.createElement('div');
+
     notice.classList.add('notice');
     notice_text.classList.add('notice-text');
     notice_progress.classList.add('notice-progress');
-    switch (type) {
-        case 'congrats':
-            notice_text.innerHTML = "Congratulations.<br>You've successfully completed Minesweeper.";
-            notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
-            break;
-        case 'failed':
-            notice_text.innerHTML = "Failed.<br>You triggered a mine.";
-            notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
-            break;
-        case 'n_enabled':
-            notice_text.innerHTML = "Warning.<br>Algorithm was not activated.";
-            notice_progress.style.backgroundColor = 'rgba(255, 150, 0, 1)';
-            break;
-        case 'reset_complete':
-            notice_text.innerHTML = "Reset Complete.";
-            notice_progress.style.backgroundColor = 'rgba(0, 220, 80, 1)';
-            break;
-        case 'reset_failed':
-            notice_text.innerHTML = "Reset Failed.";
-            notice_progress.style.backgroundColor = 'rgba(255, 20, 53, 1)';
-            break;
-        case 'alg_activated':
-            notice_text.innerHTML = "Algorithm Activated.";
-            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
-            break;
-        case 'alg_deactivated':
-            notice_text.innerHTML = "Algorithm Deactivated.";
-            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
-            break;
-        case 'test_start':
-            notice_text.innerHTML = "Test Mode Activated.<br>Sidebar closed, shortcuts disabled.";
-            notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
-            break;
-        case 'test_end':
-            notice_text.innerHTML = "Test Mode Deactivated.<br>Sidebar open, shortcuts enabled";
-            notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
-            break;
-        case 'copied':
-            notice_text.innerHTML = "Email address copied to clipboard.";
-            notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
-            break;
-        case 'algorithm_off':
-            notice_text.innerHTML = "Algorithm OFF.<br>Algorithm off due to large board size.";
-            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
-            break;
-        case 'animation_off':
-            notice_text.innerHTML = "Animation OFF.<br>Animation off due to large board size.";
-            notice_progress.style.backgroundColor = 'rgba(255, 230, 0, 1)';
-            break;
-        default:
-            notice_text.innerHTML = "Notice.<br>Default Notice Content - 1024 0010 0024.";
-            notice_progress.style.backgroundColor = 'rgba(0, 150, 255, 1)';
-            break;
-    }
+
+    notice_text.innerHTML = text;
+    notice_progress.style.backgroundColor = color;
     notice_progress.style.animation = `progressShrink ${TIMEOUT}ms linear forwards`;
+
     notice.appendChild(notice_text);
     notice.appendChild(notice_progress);
+
     notice.onclick = () => {
         if (container.contains(notice)) {
             container.removeChild(notice);
         }
     };
     notice.style.animation = 'slideInRight 0.3s ease forwards';
+
     container.appendChild(notice);
     setTimeout(() => {
         notice.style.animation = 'fadeOutUp 0.3s ease forwards';
@@ -1389,6 +1440,29 @@ function send_notice(type, locked = true) {
             }
         }, 300);
     }, TIMEOUT);
+}
+function send_test_result_notice(text) {
+    if (current_test_id === null) {
+        return;
+    }
+    const container = document.getElementById('notice-container');
+    const test_result_notice = document.createElement('div');
+    const notice_text = document.createElement('div');
+
+    test_result_notice.classList.add('notice');
+    notice_text.classList.add('notice-text');
+    notice_text.innerHTML = text + format_time(Date.now());
+    test_result_notice.appendChild(notice_text);
+
+    test_result_notice.onclick = () => {
+        if (container.contains(test_result_notice)) {
+            container.removeChild(test_result_notice);
+        }
+    };
+    test_result_notice.style.backgroundColor = 'rgba(255, 220, 220, 1)';
+    test_result_notice.style.animation = 'slideInRight 0.3s ease forwards';
+
+    container.appendChild(test_result_notice);
 }
 function handle_keydown(event) {
     if (current_test_id !== null) {
