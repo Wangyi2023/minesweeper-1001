@@ -1449,7 +1449,7 @@ function send_test_result_notice(text) {
     const test_result_notice = document.createElement('div');
     const notice_text = document.createElement('div');
 
-    test_result_notice.classList.add('notice');
+    test_result_notice.classList.add('notice', 'test-result');
     notice_text.classList.add('notice-text');
     notice_text.innerHTML = text + format_time(Date.now());
     test_result_notice.appendChild(notice_text);
@@ -1459,7 +1459,6 @@ function send_test_result_notice(text) {
             container.removeChild(test_result_notice);
         }
     };
-    test_result_notice.style.backgroundColor = 'rgba(255, 220, 220, 1)';
     test_result_notice.style.animation = 'slideInRight 0.3s ease forwards';
 
     container.appendChild(test_result_notice);
