@@ -1157,25 +1157,21 @@ function play_opening_animation() {
 
     let max_delay = Math.min(1000, Y * 16);
     let delays = Array(((Y + 1) / 2) | 0).fill(0);
-    let index = 0;
-    delays[0] = max_delay;
-    for (let i = 1; i < delays.length; i++) {
-        delays[i] = (delays[i - 1] * 0.9) | 0;
-    }
 
+    let delay = max_delay;
     let left_pivot = 0;
     let right_pivot = Y - 1;
     while (left_pivot <= right_pivot) {
         const current_left = left_pivot;
         const current_right = right_pivot;
-        const current_delay = delays[index];
+        const current_delay = delay;
 
         const timer = setTimeout(() => {
             animate_double_columns(current_left, current_right);
         }, current_delay);
         animation_timers.push(timer);
 
-        index++;
+        delay *= 0.9;
         left_pivot++;
         right_pivot--;
     }
