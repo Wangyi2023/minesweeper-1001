@@ -68,6 +68,9 @@
     pointer-events: none;
     z-index: 20;
 }
+.cell.ans {
+    background-color: rgba(120, 0, 0, 1);
+}
 
 .cell.marked {
     position: relative;

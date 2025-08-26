@@ -1122,6 +1122,22 @@ function deactivate_algorithm() {
     send_notice('alg_deactivated');
     console.warn("Algorithm deactivated.");
 }
+function highlight_all_mines() {
+    const mine_positions = [];
+    for (let i = 0; i < X * Y; i++) {
+        if (DATA[i] & Mi_) {
+            mine_positions.push(i);
+        }
+    }
+    for (const index of mine_positions) {
+        CELL_ELEMENTS[index].classList.add('ans');
+    }
+    setTimeout(() => {
+        for (const index of mine_positions) {
+            CELL_ELEMENTS[index].classList.remove('ans');
+        }
+    }, 1200);
+}
 function start_test(i) {
     current_test_id = i;
     start({test_id : i});
@@ -1156,13 +1172,23 @@ function test() {
         };
         container.appendChild(test_option);
     }
+
+    const ans_button = document.createElement('div');
+    ans_button.classList.add('test-option', 'ctrl');
+    ans_button.innerHTML = 'Ans';
+    ans_button.onclick = () => {
+        highlight_all_mines();
+    };
+    container.appendChild(ans_button);
+
     const exit_test_button = document.createElement('div');
-    exit_test_button.classList.add('test-option', 'exit');
+    exit_test_button.classList.add('test-option', 'ctrl');
     exit_test_button.innerHTML = 'Exit';
     exit_test_button.onclick = () => {
         exit_test();
     };
     container.appendChild(exit_test_button);
+
     send_notice('test_start', false);
     start_test(current_test_id);
 }

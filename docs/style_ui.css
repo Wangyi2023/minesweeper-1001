@@ -356,7 +356,7 @@ body.sidebar-collapsed .expand-button {
     background: rgba(200, 200, 200, 0.6);
     border: 2px solid rgba(255, 255, 255, 0.5);
 }
-.test-option.exit {
+.test-option.ctrl {
     color: rgba(200, 20, 20, 1);
     font-size: 18px;
     text-shadow:
