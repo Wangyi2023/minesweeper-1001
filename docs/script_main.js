@@ -1136,7 +1136,7 @@ function highlight_all_mines() {
         for (const index of mine_positions) {
             CELL_ELEMENTS[index].classList.remove('ans');
         }
-    }, 1200);
+    }, 2000);
 }
 function start_test(i) {
     current_test_id = i;
