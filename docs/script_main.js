@@ -58,6 +58,7 @@ const Test = {
     8 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2]] },
     9 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
     10 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
+    11 : { Mines: [[2, 2], [2, 5], [3, 3], [4, 4], [5, 2], [5, 5]] },
 }
 /*
 这里是消息，普通消息的内容和进度条的颜色在此确认。
@@ -940,6 +941,7 @@ function reset_mines(target_mine) {
     let removed_candidate_list_2 = `   `;
     let added_candidate_list_2 = `   `;
 
+    // 1. Phase - Remove
     let counter_removed = 0;
     for (let array_position = 1; array_position < bitmap_size; array_position++) {
         for (let bit_position = 0; bit_position < 32; bit_position++) {
@@ -959,6 +961,7 @@ function reset_mines(target_mine) {
     test_result_text += text_3 + '<br>'
     console.warn(text_3);
 
+    // 1. Phase - Add
     let counter_added = 0;
     for (let index = 0; index < X * Y; index++) {
         if ((DATA[index] & Mk_) && !(DATA[index] & Mi_)) {
@@ -975,8 +978,79 @@ function reset_mines(target_mine) {
 
     const current_removed = counter_removed - counter_added;
     const current_added = counter_added - counter_removed;
+
+    // 2. Phase - Remove
+    if (current_added > 0) {
+        const selections_1 = [];
+        const selections_2 = [];
+        for (let i = 0; i < X * Y; i++) {
+            if ((DATA[i] & Cv_) && (DATA[i] & Mi_) && i !== target_mine) {
+                const ix = (i / Y) | 0;
+                const iy = i - ix * Y;
+                let valid = true;
+                for (let n = 0; n < 8; n++) {
+                    const x = ix + DX[n];
+                    const y = iy + DY[n];
+                    if (x >= 0 && x < X && y >= 0 && y < Y) {
+                        if (!(DATA[x * Y + y] & Cv_)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+                if (valid) {
+                    selections_1.push(i);
+                } else {
+                    selections_2.push(i);
+                }
+            }
+        }
+        if (selections_1.length + selections_2.length < current_added) {
+            DATA.set(COPY);
+            update_all_cells_display();
+
+            const text_6 = 'reset failed';
+            test_result_text += text_6 + '<br>';
+            console.warn(text_6);
+
+            send_notice('reset_failed', false);
+            send_test_result_notice(test_result_text);
+            return false;
+        }
+        if (selections_1.length < current_added) {
+            const difference = current_added - selections_1.length;
+            for (let i = 0; i < difference; i++) {
+                const rj = i + (Math.random() * (selections_2.length - i)) | 0;
+                const temp = selections_2[i];
+                selections_2[i] = selections_2[rj];
+                selections_2[rj] = temp;
+
+                selections_1.push(selections_2[i]);
+            }
+        } else {
+            for (let i = 0; i < current_added; i++) {
+                const rj = i + (Math.random() * (selections_1.length - i)) | 0;
+                const temp = selections_1[i];
+                selections_1[i] = selections_1[rj];
+                selections_1[rj] = temp;
+            }
+        }
+        for (let i = 0; i < current_added; i++) {
+            const index = selections_1[i];
+            const ix = (index / Y) | 0;
+            const iy = index - ix * Y
+            removed_candidate_list_2 += `[${ix},${iy}] `
+            remove_mine(index);
+        }
+        const text_8 = `2.Phase removed ${current_added}: <br>${removed_candidate_list_2}`
+        test_result_text += text_8 + '<br>'
+        console.warn(text_8);
+    }
+
+    // 2. Phase - Add
     if (current_removed > 0) {
-        const selections = [];
+        const selections_1 = [];
+        const selections_2 = [];
         for (let i = 0; i < X * Y; i++) {
             if ((DATA[i] & Cv_) && !(DATA[i] & Mi_) && i !== target_mine) {
                 const ix = (i / Y) | 0;
@@ -993,12 +1067,16 @@ function reset_mines(target_mine) {
                     }
                 }
                 if (valid) {
-                    selections.push(i);
+                    selections_1.push(i);
+                } else {
+                    selections_2.push(i);
                 }
             }
         }
-        if (selections.length < current_removed) {
+        if (selections_1.length + selections_2.length < current_removed) {
             DATA.set(COPY);
+            update_all_cells_display();
+
             const text_5 = 'reset failed';
             test_result_text += text_5 + '<br>';
             console.warn(text_5);
@@ -1007,14 +1085,26 @@ function reset_mines(target_mine) {
             send_test_result_notice(test_result_text);
             return false;
         }
-        for (let i = 0; i < current_removed; i++) {
-            const rj = i + (Math.random() * (current_removed - i)) | 0;
-            const temp = selections[i];
-            selections[i] = selections[rj];
-            selections[rj] = temp;
+        if (selections_1.length < current_removed) {
+            const difference = current_removed - selections_1.length;
+            for (let i = 0; i < difference; i++) {
+                const rj = i + (Math.random() * (selections_2.length - i)) | 0;
+                const temp = selections_2[i];
+                selections_2[i] = selections_2[rj];
+                selections_2[rj] = temp;
+
+                selections_1.push(selections_2[i]);
+            }
+        } else {
+            for (let i = 0; i < current_removed; i++) {
+                const rj = i + (Math.random() * (selections_1.length - i)) | 0;
+                const temp = selections_1[i];
+                selections_1[i] = selections_1[rj];
+                selections_1[rj] = temp;
+            }
         }
         for (let i = 0; i < current_removed; i++) {
-            const index = selections[i];
+            const index = selections_1[i];
             const ix = (index / Y) | 0;
             const iy = index - ix * Y
             added_candidate_list_2 += `[${ix},${iy}] `
@@ -1023,54 +1113,8 @@ function reset_mines(target_mine) {
         const text_7 = `2.Phase added ${current_removed}: <br>${added_candidate_list_2}`
         test_result_text += text_7 + '<br>'
         console.warn(text_7);
-    } else if (current_added > 0) {
-        const selections = [];
-        for (let i = 0; i < X * Y; i++) {
-            if ((DATA[i] & Cv_) && (DATA[i] & Mi_)) {
-                selections.push(i);
-            }
-        }
-        if (selections.length < current_added) {
-            DATA.set(COPY);
-            const text_6 = 'reset failed';
-            test_result_text += text_6 + '<br>';
-            console.warn(text_6);
-
-            send_notice('reset_failed', false);
-            send_test_result_notice(test_result_text);
-            return false;
-        }
-        for (let i = 0; i < current_added; i++) {
-            const rj = i + (Math.random() * (current_added - i)) | 0;
-            const temp = selections[i];
-            selections[i] = selections[rj];
-            selections[rj] = temp;
-        }
-        for (let i = 0; i < current_added; i++) {
-            const index = selections[i];
-            const ix = (index / Y) | 0;
-            const iy = index - ix * Y
-            removed_candidate_list_2 += `[${ix},${iy}] `
-            remove_mine(index);
-        }
-        const text_8 = `2.Phase removed ${current_added}: <br>${removed_candidate_list_2}`
-        test_result_text += text_8 + '<br>'
-        console.warn(text_8);
     }
 
-    for (let i = 0; i < X * Y; i++) {
-        if (!(DATA[i] & Cv_) && (DATA[i] & Nr_) === 0) {
-            const ix = (i / Y) | 0;
-            const iy = i - ix * Y;
-            for (let n = 0; n < 8; n++) {
-                const x = ix + DX[n];
-                const y = iy + DY[n];
-                if (x >= 0 && x < X && y >= 0 && y < Y) {
-                    select_cell(x * Y + y);
-                }
-            }
-        }
-    }
     update_mines_visibility();
     clear_internal_mark();
     solutions = new Uint32Array(bitmap_size).fill(0);
@@ -1416,6 +1460,11 @@ function update_cell_display(i) {
         const number = (target_cell & Nr_);
         target_element.textContent = number > 0 ? number : ' ';
         target_element.classList.add('revealed');
+    }
+}
+function update_all_cells_display() {
+    for (let i = 0; i < X * Y; i++) {
+        update_cell_display(i);
     }
 }
 function start_timer() {
