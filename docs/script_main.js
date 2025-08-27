@@ -120,7 +120,7 @@ const NOTICE_CONFIG = {
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
 const ALGORITHM_LIMIT = 4800;
-const ANIMATION_LIMIT = 1600;
+const ANIMATION_LIMIT = 1200;
 const NOTICE_TIME_LIMIT = 800;
 const DELAY = 5;
 const TIMEOUT = 4500;
@@ -1063,8 +1063,9 @@ function reset_mines(target_mine) {
             }
         }
     }
+    update_mines_visibility();
     clear_internal_mark();
-    update_solvability_info();
+    solutions = new Uint32Array(bitmap_size).fill(0);
 
     const text_end = 'reset complete';
     test_result_text += text_end + '<br>';
@@ -1122,21 +1123,37 @@ function deactivate_algorithm() {
     send_notice('alg_deactivated');
     console.warn("Algorithm deactivated.");
 }
-function highlight_all_mines() {
-    const mine_positions = [];
-    for (let i = 0; i < X * Y; i++) {
-        if (DATA[i] & Mi_) {
-            mine_positions.push(i);
+function toggle_mines_visibility() {
+    const ans_button = document.getElementById('ans-button');
+    if (ans_button.classList.contains('selected')) {
+        ans_button.classList.remove('selected');
+        for (let i = 0; i < X * Y; i++) {
+            CELL_ELEMENTS[i].classList.remove('ans');
+        }
+    } else {
+        ans_button.classList.add('selected');
+        for (let i = 0; i < X * Y; i++) {
+            if (DATA[i] & Mi_) {
+                CELL_ELEMENTS[i].classList.add('ans');
+            }
         }
     }
-    for (const index of mine_positions) {
-        CELL_ELEMENTS[index].classList.add('ans');
-    }
-    setTimeout(() => {
-        for (const index of mine_positions) {
-            CELL_ELEMENTS[index].classList.remove('ans');
+}
+function update_mines_visibility() {
+    const ans_button = document.getElementById('ans-button');
+    if (ans_button.classList.contains('selected')) {
+        for (let i = 0; i < X * Y; i++) {
+            if (DATA[i] & Mi_) {
+                CELL_ELEMENTS[i].classList.add('ans');
+            } else {
+                CELL_ELEMENTS[i].classList.remove('ans');
+            }
         }
-    }, 2000);
+    } else {
+        for (let i = 0; i < X * Y; i++) {
+            CELL_ELEMENTS[i].classList.remove('ans');
+        }
+    }
 }
 function start_test(i) {
     current_test_id = i;
@@ -1174,10 +1191,11 @@ function test() {
     }
 
     const ans_button = document.createElement('div');
+    ans_button.id = 'ans-button';
     ans_button.classList.add('test-option', 'ctrl');
     ans_button.innerHTML = 'Ans';
     ans_button.onclick = () => {
-        highlight_all_mines();
+        toggle_mines_visibility();
     };
     container.appendChild(ans_button);
 
@@ -1543,6 +1561,7 @@ function handle_keydown(event) {
     if (!cursor_enabled) {
         return;
     }
+
     const step = shift_enabled ? 4 : 1;
     cursor_path = cursor_x * Y + cursor_y;
     switch (key) {

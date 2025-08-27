@@ -384,6 +384,17 @@ body.sidebar-collapsed .expand-button {
     border-radius: 1px;
     background-color: rgba(0, 0, 0, 1);
 }
+.test-option.ctrl.selected::after {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30%;
+    height: 4px;
+    border-radius: 1px;
+    background-color: rgba(200, 20, 20, 1);
+}
 
 
 /* Part 3 - Element / Properties */
