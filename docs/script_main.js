@@ -578,26 +578,19 @@ function calculate_complete_module_collection() {
         add_cell_to_module(i, inverse_module);
     }
 
-    let updated = true;
     for (const module of module_collection) {
         const created_module = process_module_pair(module, inverse_module);
         if (created_module.length === 1) {
             inverse_module = created_module[0];
-            updated = true;
         }
     }
     if (inverse_module[0] === 0) {
         add_module_cells_to_solutions(inverse_module);
-        safe_push_module(inverse_module);
-        console.log(`3. inverse [0, ${count_bits(inverse_module)}]`);
+    } else if (inverse_module[0 === count_bits(inverse_module)]) {
+        internal_mark_cells_in_module(inverse_module);
     } else {
-        for (const module of module_collection) {
-            const created_module_list = process_module_pair(inverse_module, module);
-            if (created_module_list.length === 3) {
-                add_module_cells_to_solutions(created_module_list[0]);
-                internal_mark_cells_in_module(created_module_list[1]);
-            }
-        }
+        safe_push_module(inverse_module);
+        calculate_partially_module_collection(false);
     }
 }
 function calculate_partially_module_collection(return_enabled = true) {
@@ -986,7 +979,22 @@ function reset_mines(target_mine) {
         const selections = [];
         for (let i = 0; i < X * Y; i++) {
             if ((DATA[i] & Cv_) && !(DATA[i] & Mi_) && i !== target_mine) {
-                selections.push(i);
+                const ix = (i / Y) | 0;
+                const iy = i - ix * Y;
+                let valid = true;
+                for (let n = 0; n < 8; n++) {
+                    const x = ix + DX[n];
+                    const y = iy + DY[n];
+                    if (x >= 0 && x < X && y >= 0 && y < Y) {
+                        if (!(DATA[x * Y + y] & Cv_)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+                if (valid) {
+                    selections.push(i);
+                }
             }
         }
         if (selections.length < current_removed) {
