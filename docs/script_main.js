@@ -1491,6 +1491,7 @@ function send_test_result_notice(text) {
 }
 function handle_keydown(event) {
     const key = event.key.toLowerCase();
+    const shift_enabled = event.shiftKey;
 
     if (current_test_id !== null) {
         switch (key) {
@@ -1514,6 +1515,9 @@ function handle_keydown(event) {
             toggle_sidebar();
             return;
         case 'f':
+            if (!shift_enabled) {
+                return;
+            }
             if (cursor_enabled) {
                 cursor_enabled = false;
                 CELL_ELEMENTS[cursor_x * Y + cursor_y].classList.remove('cursor');
@@ -1529,7 +1533,7 @@ function handle_keydown(event) {
             send_hint();
             break;
         case 't':
-            if (event.shiftKey) { test(); }
+            if (shift_enabled) { test(); }
             break;
         case '0':
             solve();
@@ -1539,7 +1543,7 @@ function handle_keydown(event) {
     if (!cursor_enabled) {
         return;
     }
-    const step = event.shiftKey ? 4 : 1;
+    const step = shift_enabled ? 4 : 1;
     cursor_path = cursor_x * Y + cursor_y;
     switch (key) {
         case 'w':
