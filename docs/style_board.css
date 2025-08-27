@@ -39,6 +39,7 @@
     user-select: none;
     position: relative;
     transition: none;
+    z-index: 10;
 }
 .cell.revealed {
     background-color: rgba(0, 0, 0, 0.4);
