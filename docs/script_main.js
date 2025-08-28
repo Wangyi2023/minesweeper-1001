@@ -208,7 +208,7 @@ function start() {
     render_border();
     init_information_box();
     update_solvability_info();
-    updateCursor();
+    update_cursor();
     play_opening_animation();
 }
 function init_board_data() {
@@ -511,7 +511,7 @@ async function solve_all() {
     }
     document.getElementById('solve-all-btn').classList.add('selected');
     is_solving = true;
-    while (!game_over && is_solving && solvable) {
+    while (!game_over && is_solving) {
         solve();
         await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -1659,7 +1659,7 @@ function handle_keydown(event) {
             select_cell(cursor_x * Y + cursor_y);
             break;
     }
-    updateCursor();
+    update_cursor();
 }
 // Todo 2.5 - Sidebar
 function toggle_sidebar() {
@@ -1727,7 +1727,7 @@ function close_background_menu() {
     document.getElementById('background-btn').classList.remove('selected');
 }
 // Todo 2.6 - Cursor
-function updateCursor() {
+function update_cursor() {
     CELL_ELEMENTS[cursor_path].classList.remove('cursor');
     if (cursor_enabled) {
         const target_element = CELL_ELEMENTS[cursor_x * Y + cursor_y];
@@ -1735,7 +1735,7 @@ function updateCursor() {
     }
 }
 // Todo 2.7 - Text Copy
-function copyToClipboard(text) {
+function copy_to_clipboard(text) {
     navigator.clipboard.writeText(text)
         .then(() => {
             send_notice('copied');
