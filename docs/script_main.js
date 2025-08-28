@@ -73,7 +73,7 @@ const NOTICE_CONFIG = {
         text: "Failed.<br>You triggered a mine.",
         color: 'rgba(255, 20, 53, 1)'
     },
-    n_enabled: {
+    alg_not_enabled: {
         text: "Warning.<br>Algorithm was not activated.",
         color: 'rgba(255, 150, 0, 1)'
     },
@@ -404,7 +404,7 @@ function send_hint() {
         return;
     }
     if (!algorithm_enabled) {
-        send_notice('n_enabled');
+        send_notice('alg_not_enabled');
         return;
     }
 
@@ -448,7 +448,7 @@ function auto_mark() {
         return;
     }
     if (!algorithm_enabled) {
-        send_notice('n_enabled');
+        send_notice('alg_not_enabled');
         return;
     }
     init_module_collection();
@@ -470,7 +470,7 @@ function solve() {
         return;
     }
     if (!algorithm_enabled) {
-        send_notice('n_enabled');
+        send_notice('alg_not_enabled');
         return;
     }
     if (first_step || !solvable) {
@@ -502,7 +502,7 @@ async function solve_all() {
         return;
     }
     if (!algorithm_enabled) {
-        send_notice('n_enabled');
+        send_notice('alg_not_enabled');
         return;
     }
     if (is_solving) {
