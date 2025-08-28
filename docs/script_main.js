@@ -211,7 +211,7 @@ function start() {
     init_information_box();
     update_solvability_info();
     update_cursor();
-    play_opening_animation();
+    play_start_animation();
 }
 function init_board_data() {
     /*
@@ -1371,7 +1371,7 @@ function format_time(timestamp) {
     let s = String(date.getSeconds()).padStart(2, '0');
     return `${h}:${m}:${s} / ${Y}.${M}.${D}`;
 }
-function play_opening_animation() {
+function play_start_animation(max_delay = 1000) {
     if (X * Y > ANIMATION_LIMIT) {
         send_notice("animation_off");
         return;
@@ -1379,7 +1379,7 @@ function play_opening_animation() {
     animation_timers = []
     hide_all_cells();
 
-    const max_delay = Math.min(1000, Y * 16);
+    max_delay = Math.min(max_delay, Y * 16);
     let delay = max_delay;
     let left_pivot = 0;
     let right_pivot = Y - 1;
