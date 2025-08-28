@@ -155,12 +155,12 @@ let solvable = false;
 // < Part 1 - Game Logic >
 
 // Todo 1.1 - Init
-function start({test_id} = {}) {
+function start() {
     ID++;
     clear_all_animation_timers();
 
-    if (test_id) {
-        const params = Test[test_id];
+    if (current_test_id !== null) {
+        const params = Test[current_test_id];
         X = 8;
         Y = 8;
         N = params.Mines.length;
@@ -1226,7 +1226,7 @@ function update_mines_visibility() {
 }
 function start_test(i) {
     current_test_id = i;
-    start({test_id : i});
+    start();
     update_test_selection();
 }
 function update_test_selection() {
@@ -1610,13 +1610,9 @@ function handle_keydown(event) {
             if (!shift_enabled) {
                 return;
             }
-            if (cursor_enabled) {
-                cursor_enabled = false;
-                CELL_ELEMENTS[cursor_x * Y + cursor_y].classList.remove('cursor');
-            } else {
-                cursor_enabled = true;
-                CELL_ELEMENTS[cursor_x * Y + cursor_y].classList.add('cursor');
-            }
+            cursor_enabled = !cursor_enabled;
+            const cell = CELL_ELEMENTS[cursor_x * Y + cursor_y];
+            cell.classList.toggle('cursor', cursor_enabled);
             return;
         case 'r':
             start();
