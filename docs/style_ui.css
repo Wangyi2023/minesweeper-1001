@@ -333,7 +333,7 @@ body.sidebar-collapsed .expand-button {
 }
 .test-container {
     display: grid;
-    grid-template-columns: repeat(8, 48px);
+    grid-template-columns: repeat(6, 48px);
     gap: 12px;
 }
 
