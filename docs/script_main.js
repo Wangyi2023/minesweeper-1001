@@ -511,7 +511,7 @@ async function solve_all() {
     }
     document.getElementById('solve-all-btn').classList.add('selected');
     is_solving = true;
-    while (!game_over && is_solving) {
+    while (!game_over && is_solving && solvable) {
         solve();
         await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -1210,6 +1210,7 @@ function toggle_mines_visibility() {
 }
 function update_mines_visibility() {
     const ans_button = document.getElementById('ans-button');
+    if (!ans_button) return;
     if (ans_button.classList.contains('selected')) {
         for (let i = 0; i < X * Y; i++) {
             if (DATA[i] & Mi_) {
