@@ -61,7 +61,7 @@ const Test = {
     11 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
     12 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
     13 : { Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    14 : { Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] }
+    14 : { Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
 }
 /*
 这里是消息，普通消息的内容和进度条的颜色在此确认。
@@ -190,7 +190,7 @@ function start() {
         send_notice("algorithm_off");
     }
 
-    module_collection = [];
+    module_collection.length = 0;
     bitmap_size = Math.ceil(X * Y / 32) + 1;
     solutions = new Uint32Array(bitmap_size);
     solvable = false;
@@ -292,9 +292,20 @@ function select_cell(i) {
     /*
     这是玩家层面的选择方格函数，它会对特殊情况进行特定的处理，再调用规范的 reveal_cell 函数进行打开格子。
      */
-    if (game_over || !(DATA[i] & Cv_)) {
+    if (game_over) {
         return;
     }
+    if (!(DATA[i] & Cv_)) {
+        return;
+    }
+    const target_element = CELL_ELEMENTS[i];
+    if (target_element.classList.contains('marked')) {
+        target_element.classList.remove('marked');
+        counter_marked--;
+        update_marks_info();
+        return;
+    }
+
     if (first_step) {
         init_mines(N, i);
         document.getElementById('status-info').textContent = 'In Progress';
@@ -303,13 +314,6 @@ function select_cell(i) {
     }
     if (!solvable && (DATA[i] & Mi_)) {
         reset_mines(i);
-    }
-    const target_element = CELL_ELEMENTS[i];
-    if (target_element.classList.contains('marked')) {
-        target_element.classList.remove('marked');
-        counter_marked--;
-        update_marks_info();
-        return;
     }
 
     admin_reveal_cell(i, ID);
@@ -638,7 +642,7 @@ function init_module_collection() {
     最后如果模块中未确认的雷的数量恰好等于它的未打开的方格的数量，这个模块不仅不会被添加到模块集里，还会将其内部的所有方格进行
     内部标记，以便在创建其它模块时可以不需要再次辨别。
      */
-    module_collection = [];
+    module_collection.length = 0;
     for (let index = 0; index < X * Y; index++) {
         if ((DATA[index] & Cv_)) {
             continue;
@@ -982,6 +986,11 @@ function reset_mines(target_mine) {
     const current_removed = counter_removed - counter_added;
     const current_added = counter_added - counter_removed;
 
+    // 2. Phase - Add
+    // if (!partially_equals(COPY)) {
+    //
+    // }
+
     // 2. Phase - Remove
     if (current_added > 0) {
         const selections_1 = [];
@@ -1136,6 +1145,7 @@ function reset_mines(target_mine) {
 
     update_mines_visibility();
     clear_internal_mark();
+    module_collection.length = 0;
     solutions = new Uint32Array(bitmap_size).fill(0);
 
     const text_end = 'reset complete';
@@ -1376,7 +1386,7 @@ function play_start_animation(max_delay = 1000) {
         send_notice("animation_off");
         return;
     }
-    animation_timers = []
+    animation_timers.length = 0;
     hide_all_cells();
 
     max_delay = Math.min(max_delay, Y * 16);
@@ -1439,7 +1449,7 @@ function clear_all_animation_timers() {
         clearTimeout(timer);
         clearInterval(timer);
     });
-    animation_timers = [];
+    animation_timers.length = 0;
 }
 function cleanup_animation() {
     for (let i = 0; i < X * Y; i++) {
