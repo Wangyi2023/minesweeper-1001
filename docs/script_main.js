@@ -49,19 +49,19 @@ const DY = [0, 1, 0, -1, 1, 1, -1, -1];
  */
 const Test = {
     1  : { Mines: [[0, 0], [2, 0], [2, 1]] },
-    2  : { Mines: [[0, 0], [2, 0], [2, 1], [3, 0], [5, 0], [5, 1], [7, 0]] },
-    3  : { Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
-    4  : { Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
-    5  : { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
-    6  : { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [6, 0]] },
-    7  : { Mines: [[2, 2], [2, 5], [3, 3], [4, 4], [5, 2], [5, 5]] },
-    8  : { Mines: [[0, 0], [1, 1], [2, 2]] },
-    9  : { Mines: [[0, 1], [1, 0], [2, 2]] },
-    10 : { Mines: [[0, 1], [1, 0], [2, 2], [5, 5], [6, 7], [7, 6]] },
-    11 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
-    12 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
-    13 : { Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    14 : { Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    2  : { Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
+    3  : { Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
+    4  : { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
+    5  : { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [6, 0]] },
+    6  : { Mines: [[0, 0], [1, 1], [2, 2]] },
+    7  : { Mines: [[0, 1], [1, 0], [2, 2]] },
+    8  : { Mines: [[0, 1], [1, 0], [2, 2], [5, 5], [6, 7], [7, 6]] },
+    9  : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
+    10 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
+    11 : { Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    12 : { Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    13 : { Mines: [[0, 0], [0, 2], [2, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    14 : { Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] }
 }
 /*
 这里是消息，普通消息的内容和进度条的颜色在此确认。
@@ -170,7 +170,7 @@ function start() {
         init_board_data();
 
         for (const [x, y] of params.Mines) {
-            add_mine(x * Y + y);
+            set_mine(x * Y + y);
         }
 
         setTimeout(() => {select_cell(7)}, 50);
@@ -906,9 +906,9 @@ function reset_mines(target_mine) {
 
     let test_result_text = '';
 
-    const text_1 = 'Reset Algorithm Activated.';
-    test_result_text += text_1 + '<br>';
-    console.warn(text_1);
+    const text_01 = 'Reset Algorithm Activated.';
+    test_result_text += text_01 + '<br>';
+    console.warn(text_01);
     for (const module of module_collection) {
         if (module[0] > 0 && module[0] === count_bits(module)) {
             internal_mark_cells_in_module(module);
@@ -916,9 +916,9 @@ function reset_mines(target_mine) {
     }
 
     if (DATA[target_mine] & Mk_) {
-        const text_2 = 'Clicked a cell that is definitely a mine'
-        test_result_text += text_2 + '<br>';
-        console.warn(text_2);
+        const text_02 = 'Clicked a cell that is definitely a mine'
+        test_result_text += text_02 + '<br>';
+        console.warn(text_02);
 
         send_test_result_notice(test_result_text);
         return false;
@@ -943,13 +943,19 @@ function reset_mines(target_mine) {
 
     const COPY = new Uint32Array(DATA);
 
-    let removed_candidate_list_1 = `   `;
-    let added_candidate_list_1 = `   `;
-    let removed_candidate_list_2 = `   `;
-    let added_candidate_list_2 = `   `;
+    let removed_candidate_list_1 = ` `;
+    let added_candidate_list_1 = ` `;
+    let removed_counter_1 = 0;
+    let added_counter_1 = 0;
 
-    // 1. Phase - Remove
-    let counter_removed = 0;
+    let added_candidate_list_2 = ' '
+    let added_counter_2 = 0;
+
+    let removed_candidate_list_3 = ` `;
+    let added_candidate_list_3 = ` `;
+
+
+    // 1. Phase Begin
     for (let array_position = 1; array_position < bitmap_size; array_position++) {
         for (let bit_position = 0; bit_position < 32; bit_position++) {
             if (solutions[array_position] & (1 << bit_position)) {
@@ -959,39 +965,89 @@ function reset_mines(target_mine) {
                     const ix = (index / Y) | 0;
                     const iy = index - ix * Y
                     removed_candidate_list_1 += `[${ix},${iy}] `
-                    counter_removed++;
+                    removed_counter_1++;
                 }
             }
         }
     }
-    const text_3 = `1.Phase removed ${counter_removed}: <br>${removed_candidate_list_1}`
-    test_result_text += text_3 + '<br>'
-    console.warn(text_3);
+    if (removed_counter_1 > 0) {
+        const text_11 = `1.Phase removed ${removed_counter_1}: <br>${removed_candidate_list_1}`
+        test_result_text += text_11 + '<br>'
+        console.warn(text_11);
+    }
 
-    // 1. Phase - Add
-    let counter_added = 0;
     for (let index = 0; index < X * Y; index++) {
         if ((DATA[index] & Mk_) && !(DATA[index] & Mi_)) {
-            add_mine(index);
+            set_mine(index);
             const ix = (index / Y) | 0;
             const iy = index - ix * Y
             added_candidate_list_1 += `[${ix},${iy}] `
-            counter_added++;
+            added_counter_1++;
         }
     }
-    const text_4 = `1.Phase added ${counter_added}: <br>${added_candidate_list_1}`
-    test_result_text += text_4 + '<br>'
-    console.warn(text_4);
+    if (added_counter_1 > 0) {
+        const text_12 = `1.Phase added ${added_counter_1}: <br>${added_candidate_list_1}`
+        test_result_text += text_12 + '<br>'
+        console.warn(text_12);
+    }
+    // 1. Phase End
 
-    const current_removed = counter_removed - counter_added;
-    const current_added = counter_added - counter_removed;
 
-    // 2. Phase - Add
-    // if (!partially_equals(COPY)) {
-    //
-    // }
+    // 2. Phase Begin
+    const linked_number_cells = [];
+    const linked_covered_cells_set = new Set();
+    for (let i = 0; i < X * Y; i++) {
+        if (DATA[i] & Cv_) {
+            continue;
+        }
+        if ((DATA[i] & Nr_) !== (COPY[i] & Nr_)) {
+            linked_number_cells.push(i);
+            const ix = (i / Y) | 0;
+            const iy = i - ix * Y;
+            for (let n = 0; n < 8; n++) {
+                const x = ix + DX[n];
+                const y = iy + DY[n];
+                if (x >= 0 && x < X && y >= 0 && y < Y) {
+                    const index = x * Y + y;
+                    if (index !== target_mine) {
+                        if (!(DATA[index] & Mi_) && (DATA[index] & Cv_)) {
+                            linked_covered_cells_set.add(index);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-    // 2. Phase - Remove
+    const linked_covered_cells = Array.from(linked_covered_cells_set);
+    if (linked_covered_cells.length > 0) {
+        let number_changed = true;
+        if (linked_covered_cells.length < 12) {
+            number_changed = !recursive_add_mines(COPY, linked_number_cells, linked_covered_cells);
+            for (const i of linked_covered_cells) {
+                if (DATA[i] & Mi_) {
+                    const ix = (i / Y) | 0;
+                    const iy = i - ix * Y;
+                    added_counter_2++;
+                    added_candidate_list_2 += `[${ix},${iy}] `
+                }
+            }
+        }
+        if (number_changed) {
+            console.warn('Number Changed!');
+        }
+        const text_21 = `2.Phase added ${added_counter_2}: <br>${added_candidate_list_2}`
+        test_result_text += text_21 + '<br>'
+        console.warn(text_21);
+    }
+    // 2. Phase End
+
+
+    // 3. Phase - Begin
+    const current_number_of_mines = count_number_of_mines();
+    const current_removed = N - current_number_of_mines;
+    const current_added = current_number_of_mines - N;
+
     if (current_added > 0) {
         const selections_1 = [];
         const selections_2 = [];
@@ -1021,9 +1077,9 @@ function reset_mines(target_mine) {
             DATA.set(COPY);
             update_all_cells_display();
 
-            const text_6 = 'reset failed';
-            test_result_text += text_6 + '<br>';
-            console.warn(text_6);
+            const text_31 = 'reset failed';
+            test_result_text += text_31 + '<br>';
+            console.warn(text_31);
 
             send_notice('reset_failed', false);
             send_test_result_notice(test_result_text);
@@ -1051,15 +1107,14 @@ function reset_mines(target_mine) {
             const index = selections_1[i];
             const ix = (index / Y) | 0;
             const iy = index - ix * Y
-            removed_candidate_list_2 += `[${ix},${iy}] `
+            removed_candidate_list_3 += `[${ix},${iy}] `
             remove_mine(index);
         }
-        const text_8 = `2.Phase removed ${current_added}: <br>${removed_candidate_list_2}`
-        test_result_text += text_8 + '<br>'
-        console.warn(text_8);
+        const text_32 = `3.Phase removed ${current_added}: <br>${removed_candidate_list_3}`
+        test_result_text += text_32 + '<br>'
+        console.warn(text_32);
     }
 
-    // 2. Phase - Add
     if (current_removed > 0) {
         const selections_1 = [];
         const selections_2 = [];
@@ -1089,9 +1144,9 @@ function reset_mines(target_mine) {
             DATA.set(COPY);
             update_all_cells_display();
 
-            const text_5 = 'reset failed';
-            test_result_text += text_5 + '<br>';
-            console.warn(text_5);
+            const text_33 = 'reset failed';
+            test_result_text += text_33 + '<br>';
+            console.warn(text_33);
 
             send_notice('reset_failed', false);
             send_test_result_notice(test_result_text);
@@ -1119,13 +1174,15 @@ function reset_mines(target_mine) {
             const index = selections_1[i];
             const ix = (index / Y) | 0;
             const iy = index - ix * Y
-            added_candidate_list_2 += `[${ix},${iy}] `
-            add_mine(index);
+            added_candidate_list_3 += `[${ix},${iy}] `
+            set_mine(index);
         }
-        const text_7 = `2.Phase added ${current_removed}: <br>${added_candidate_list_2}`
-        test_result_text += text_7 + '<br>'
-        console.warn(text_7);
+        const text_34 = `3.Phase added ${current_removed}: <br>${added_candidate_list_3}`
+        test_result_text += text_34 + '<br>'
+        console.warn(text_34);
     }
+    // 3.Phase End
+
 
     for (let i = 0; i < X * Y; i++) {
         if ((DATA[i] & Nr_) === 0 && !(DATA[i] & Cv_)) {
@@ -1143,10 +1200,11 @@ function reset_mines(target_mine) {
         }
     }
 
-    update_mines_visibility();
-    clear_internal_mark();
     module_collection.length = 0;
     solutions = new Uint32Array(bitmap_size).fill(0);
+    update_mines_visibility();
+    clear_all_internal_mark();
+    update_solvability_info();
 
     const text_end = 'reset complete';
     test_result_text += text_end + '<br>';
@@ -1155,6 +1213,25 @@ function reset_mines(target_mine) {
     send_notice('reset_complete', false);
     send_test_result_notice(test_result_text);
     return true;
+}
+function recursive_add_mines(COPY, linked_number_cells, linked_covered_cells, i = 0) {
+    if (i === linked_covered_cells.length) {
+        return partially_eq(COPY, linked_number_cells);
+    }
+
+    if (recursive_add_mines(COPY, linked_number_cells, linked_covered_cells, i + 1)) {
+        return true;
+    }
+
+    const index = linked_covered_cells[i];
+    set_mine(index);
+    if (partially_leq(COPY, linked_number_cells)) {
+        if (recursive_add_mines(COPY, linked_number_cells, linked_covered_cells, i + 1)) {
+            return true;
+        }
+    }
+    remove_mine(index);
+    return false;
 }
 function remove_mine(index) {
     DATA[index] &= ~Mi_;
@@ -1171,7 +1248,7 @@ function remove_mine(index) {
         }
     }
 }
-function add_mine(index) {
+function set_mine(index) {
     DATA[index] |= Mi_;
     update_cell_display(index);
     const idx = (index / Y) | 0;
@@ -1186,10 +1263,35 @@ function add_mine(index) {
         }
     }
 }
-function clear_internal_mark() {
+function clear_all_internal_mark() {
     for (let i = 0; i < X * Y; i++) {
         DATA[i] &= ~Mk_;
     }
+}
+function count_number_of_mines() {
+    let counter = 0;
+    for (let i = 0; i < X * Y; i++) {
+        if (DATA[i] & Mi_) {
+            counter++;
+        }
+    }
+    return counter;
+}
+function partially_eq(COPY, linked_number_cells) {
+    for (const index of linked_number_cells) {
+        if ((DATA[index] & Nr_) !== (COPY[index] & Nr_)) {
+            return false;
+        }
+    }
+    return true;
+}
+function partially_leq(COPY, linked_number_cells) {
+    for (const index of linked_number_cells) {
+        if ((DATA[index] & Nr_) > (COPY[index] & Nr_)) {
+            return false;
+        }
+    }
+    return true;
 }
 // Todo 1.6 - Administrator Function
 function activate_algorithm() {
