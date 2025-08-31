@@ -47,7 +47,7 @@ const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 这里是测试列表，在测试模式中会创建 8x8 特定放置雷的测试棋盘，并自动打开右上角 (7, 0) 坐标。
 测试通过在控制台使用 test 函数调用，以下测试主要用于检测 reset_mines 功能。
  */
-const Test = {
+const TEST_CONFIG = {
     1  : { Mines: [[0, 0], [2, 0], [2, 1]] },
     2  : { Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
     3  : { Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
@@ -63,6 +63,7 @@ const Test = {
     13 : { Mines: [[0, 0], [0, 2], [2, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
     14 : { Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] }
 }
+const TEST_SIZE = Object.keys(TEST_CONFIG).length;
 /*
 这里是消息，普通消息的内容和进度条的颜色在此确认。
  */
@@ -162,7 +163,7 @@ function start() {
     clear_all_animation_timers();
 
     if (current_test_id !== null) {
-        const params = Test[current_test_id];
+        const params = TEST_CONFIG[current_test_id];
         X = 8;
         Y = 8;
         N = params.Mines.length;
@@ -192,7 +193,7 @@ function start() {
 
     module_collection.length = 0;
     bitmap_size = Math.ceil(X * Y / 32) + 1;
-    solutions = new Uint32Array(bitmap_size);
+    solutions = new Uint32Array(bitmap_size).fill(0);
     solvable = false;
     is_solving = false;
     game_over = false;
@@ -1344,6 +1345,22 @@ function start_test(i) {
     start();
     update_test_selection();
 }
+function select_previous_test() {
+    current_test_id--;
+    if (current_test_id === 0) {
+        current_test_id = Object.keys(TEST_CONFIG).length;
+    }
+    start();
+    update_test_selection();
+}
+function select_next_test() {
+    current_test_id++;
+    if (current_test_id > Object.keys(TEST_CONFIG).length) {
+        current_test_id = 1;
+    }
+    start();
+    update_test_selection();
+}
 function update_test_selection() {
     document.querySelectorAll('.test-option:not(.exit)').forEach(option => {
         const testId = option.textContent.trim();
@@ -1364,7 +1381,7 @@ function test() {
     const container = document.getElementById("test-container");
     container.innerHTML = '';
     container.style.display = 'grid';
-    for (const key of Object.keys(Test)) {
+    for (let key = 1; key <= TEST_SIZE; key++) {
         const test_option = document.createElement('div');
         test_option.classList.add('test-option');
         test_option.innerHTML = `${format_number(key)}`;
@@ -1708,6 +1725,17 @@ function handle_keydown(event) {
             case 'escape':
                 exit_test();
                 return;
+            case ' ':
+                toggle_mines_visibility();
+                break;
+            case 'arrowright':
+            case 'arrowdown':
+                select_next_test();
+                break;
+            case 'arrowleft':
+            case 'arrowup':
+                select_previous_test();
+                break;
         }
         return;
     }
