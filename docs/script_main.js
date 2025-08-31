@@ -523,7 +523,7 @@ async function solve_all() {
     is_solving = true;
     while (!game_over && is_solving) {
         solve();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
     }
     document.getElementById('solve-all-btn').classList.remove('selected');
     is_solving = false;
