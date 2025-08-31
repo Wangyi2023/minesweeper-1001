@@ -368,6 +368,9 @@ function admin_reveal_cell(i, current_id) {
     注意！所有 reveal cell 的行为必须通过此 admin_reveal_cell 函数，因为所有游戏状态的检测和修改都在此函数内，此处为分界线。
     算法也统一在此处更新，因为每次棋盘内容有变动都需要及时更新可解性（solvability）信息。
      */
+    if (game_over) {
+        return;
+    }
     if (current_id !== ID) {
         return;
     }
@@ -595,8 +598,6 @@ function calculate_complete_module_collection() {
     }
     if (inverse_module[0] === 0) {
         add_module_cells_to_solutions(inverse_module);
-    } else if (inverse_module[0 === count_bits(inverse_module)]) {
-        internal_mark_cells_in_module(inverse_module);
     } else {
         safe_push_module(inverse_module);
         calculate_partially_module_collection(false);
@@ -731,7 +732,7 @@ function process_module_pair(a, b) {
     let b_subset_a = true;
     let intersect = false;
 
-    for (let i = 1; i <= bitmap_size; i++) {
+    for (let i = 1; i < bitmap_size; i++) {
         const data_a = a[i];
         const data_b = b[i];
 
@@ -758,7 +759,7 @@ function process_module_pair(a, b) {
     if (a_subset_b) {
         const c = new Uint32Array(bitmap_size).fill(0);
         c[0] = b_0 - a_0;
-        for (let i = 1; i <= bitmap_size; i++) {
+        for (let i = 1; i < bitmap_size; i++) {
             c[i] = b[i] & ~a[i];
         }
         return [c];
@@ -766,7 +767,7 @@ function process_module_pair(a, b) {
     if (b_subset_a) {
         const c = new Uint32Array(bitmap_size).fill(0);
         c[0] = a_0 - b_0;
-        for (let i = 1; i <= bitmap_size; i++) {
+        for (let i = 1; i < bitmap_size; i++) {
             c[i] = a[i] & ~b[i];
         }
         return [c];
@@ -870,7 +871,7 @@ function equals_module(a, b) {
 }
 function bitwise_intersection(a, b) {
     const result = new Uint32Array(bitmap_size).fill(0);
-    for (let i = 1; i <bitmap_size; i++) {
+    for (let i = 1; i < bitmap_size; i++) {
         result[i] = a[i] & b[i];
     }
     return result;
