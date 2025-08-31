@@ -943,7 +943,7 @@ function reset_mines(target_mine) {
         }
     }
 
-    const COPY = new Uint32Array(DATA);
+    const COPY = new Uint8Array(DATA);
 
     let removed_candidate_list_1 = ` `;
     let added_candidate_list_1 = ` `;
