@@ -1450,12 +1450,14 @@ function render_border() {
     border.style.height = `${height + 2 * BORDER_OFFSET}px`;
     border.style.left = `${-BORDER_OFFSET}px`;
     border.style.top = `${-BORDER_OFFSET}px`;
+    border.style.display = 'block';
 
     const border_outline = document.getElementById('border-outline');
     border_outline.style.width = `${width + 2 * BORDER_OFFSET_OUTLINE}px`;
     border_outline.style.height = `${height + 2 * BORDER_OFFSET_OUTLINE}px`;
     border_outline.style.left = `${-BORDER_OFFSET_OUTLINE}px`;
     border_outline.style.top = `${-BORDER_OFFSET_OUTLINE}px`;
+    border_outline.style.display = 'block';
 }
 function generate_game_field() {
     CELL_ELEMENTS = new Array(X * Y);
@@ -1893,6 +1895,23 @@ function copy_to_clipboard(text) {
             send_notice('copied');
         });
 }
+// Todo 2.8 - Preload Image
+function preload_backgrounds() {
+    const background_path = 'Background_Collection/';
+    const resources = [
+        '01.jpg',
+        '02.jpg',
+        '03.jpg',
+        '04.jpg',
+        '05.jpg',
+    ];
+    setTimeout(() => {
+        resources.forEach(resource => {
+            new Image().src = background_path + resource;
+            console.log(`Loaded Background ${resource}`);
+        })
+    }, 1000);
+}
 
 
 
@@ -1900,4 +1919,5 @@ function copy_to_clipboard(text) {
 
 // Todo 3.1 - Init Game / Load Monitor
 document.addEventListener('keydown', handle_keydown);
+preload_backgrounds();
 start();
