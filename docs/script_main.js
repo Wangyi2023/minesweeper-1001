@@ -1897,7 +1897,7 @@ function copy_to_clipboard(text) {
 }
 // Todo 2.8 - Preload Image
 function preload_backgrounds() {
-    const background_path = 'Background_Collection/';
+    const path = 'Background_Collection/';
     const resources = [
         '01.jpg',
         '02.jpg',
@@ -1907,7 +1907,7 @@ function preload_backgrounds() {
     ];
     setTimeout(() => {
         resources.forEach(resource => {
-            new Image().src = background_path + resource;
+            new Image().src = path + resource;
             console.log(`Loaded Background ${resource}`);
         })
     }, 1000);
