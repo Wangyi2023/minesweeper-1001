@@ -103,6 +103,10 @@
             </div>
 
             <div class="sidebar-button">
+                <div id="screenshot-btn" class="button" onclick="screenshot_data()">Screenshot</div>
+            </div>
+
+            <div class="sidebar-button">
                 <div id="guide-btn" class="button" onclick="open_guide()">Guide</div>
             </div>
 
@@ -132,7 +136,8 @@
     </div>
 
     <div id="board-wrapper" class="board-wrapper">
-        <div id="board"></div>
+        <div id="board" class="board"></div>
+        <div id="board-screenshot" class="board"></div>
         <div id="border" class="border"></div>
         <div id="border-outline" class="border-outline"></div>
     </div>
@@ -144,6 +149,7 @@
     </div>
 </div>
 <!-- Script - Part 1 -->
+<script src="libs/html2canvas.min.js"></script>
 <script src="script_main.js"></script>
 <!-- Modal -->
 <div id="guide-modal" class="modal" onclick="close_guide(event)">

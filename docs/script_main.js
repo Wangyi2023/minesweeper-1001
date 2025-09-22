@@ -119,6 +119,10 @@ const NOTICE_CONFIG = {
     default: {
         text: "Notice.<br>Default Notice Content - 1024 0010 0024.",
         color: 'rgba(0, 150, 255, 1)'
+    },
+    screenshot: {
+        text: "Screenshot Completed.<br>Screenshot saved to default folder",
+        color: 'rgba(0, 220, 80, 1)'
     }
 };
 
@@ -211,6 +215,7 @@ function start() {
     render_border();
     init_information_box();
     update_solvability_info();
+    update_mines_visibility()
     update_cursor();
     play_start_animation();
 }
@@ -620,6 +625,7 @@ function calculate_partially_module_collection(return_enabled = true) {
             if (module_i[0] === 0) {
                 add_module_cells_to_solutions(module_i);
                 if (return_enabled) {
+                    console.log(`2. partially ${module_collection.length}`);
                     return;
                 }
             }
@@ -675,9 +681,8 @@ function init_module_collection() {
         if (module_size > 0) {
             if (module_size === module[0]) {
                 internal_mark_cells_in_module(module);
-            } else {
-                safe_push_module(module);
             }
+            safe_push_module(module);
         }
     }
     console.log(`1. init ${module_collection.length.toString()}`);
@@ -1206,7 +1211,6 @@ function reset_mines(target_mine) {
     solutions = new Uint32Array(bitmap_size).fill(0);
     update_mines_visibility();
     clear_all_internal_mark();
-    update_solvability_info();
 
     const text_end = 'reset complete';
     test_result_text += text_end + '<br>';
@@ -1311,6 +1315,9 @@ function deactivate_algorithm() {
 function toggle_mines_visibility() {
     const ans_btn = document.getElementById('ans-btn');
     const answer_btn = document.getElementById('answer-btn');
+    if (ans_btn === null) {
+        return;
+    }
     if (ans_btn.classList.contains('selected')) {
         ans_btn.classList.remove('selected');
         answer_btn.classList.remove('selected');
@@ -1359,7 +1366,6 @@ function select_previous_test() {
     }
     start();
     update_test_selection();
-    update_mines_visibility();
 }
 function select_next_test() {
     current_test_id++;
@@ -1368,13 +1374,13 @@ function select_next_test() {
     }
     start();
     update_test_selection();
-    update_mines_visibility();
 }
 function test() {
     current_test_id = 1;
     cursor_enabled = false;
 
     generate_test_ui();
+    adjust_sidebar_buttons();
     update_test_selection();
     send_notice('test_start', false);
     start();
@@ -1384,6 +1390,7 @@ function exit_test() {
     document.getElementById('answer-btn').classList.remove('selected');
 
     close_test_ui();
+    adjust_sidebar_buttons();
     send_notice('test_end', false);
     start();
 }
@@ -1436,7 +1443,7 @@ function generate_game_field() {
         const div = document.createElement("div");
         div.className = "cell";
         div.style.fontSize = `${FONT_SIZE}px`;
-        div.dataset.index = i.toString()
+        div.dataset.index = i.toString();
         div.addEventListener("click", () => select_cell(i));
         div.addEventListener("contextmenu", (e) => {
             e.preventDefault();
@@ -1458,7 +1465,7 @@ function format_number(n) {
     }
     return '?';
 }
-function format_time(timestamp) {
+function format_time(timestamp, used_in_filename = false) {
     let date = new Date(timestamp);
     let Y = date.getFullYear();
     let M = String(date.getMonth() + 1).padStart(2, '0');
@@ -1466,7 +1473,11 @@ function format_time(timestamp) {
     let h = String(date.getHours()).padStart(2, '0');
     let m = String(date.getMinutes()).padStart(2, '0');
     let s = String(date.getSeconds()).padStart(2, '0');
-    return `${h}:${m}:${s} / ${Y}.${M}.${D}`;
+    if (used_in_filename) {
+        return `${Y}_${M}_${D}_${h}_${m}_${s}`;
+    } else {
+        return `${h}:${m}:${s} / ${Y}.${M}.${D}`;
+    }
 }
 function play_start_animation(max_delay = 1000) {
     if (X * Y > ANIMATION_LIMIT) {
@@ -1575,7 +1586,7 @@ function update_cell_display(i) {
         terminate(false);
     } else {
         const number = (target_cell & Nr_);
-        target_element.textContent = number > 0 ? number : ' ';
+        target_element.textContent = number > 0 ? number.toString() : ' ';
         target_element.classList.add('revealed');
     }
 }
@@ -1906,14 +1917,10 @@ function generate_test_ui() {
         exit_test();
     };
     container.appendChild(exit_test_button);
-
-    adjust_sidebar_buttons();
 }
 function close_test_ui() {
     document.getElementById(`main-test-container`).style.display = `none`;
     document.getElementById("test-container").innerHTML = '';
-
-    adjust_sidebar_buttons();
 }
 function adjust_sidebar_buttons() {
     close_difficulty_menu();
@@ -1937,6 +1944,97 @@ function update_test_selection() {
         }
     });
 }
+async function screenshot_data() {
+    await document.fonts.ready;
+
+    const indent_a = 8;
+    const indent_b = 8;
+    const width = (Y + 1) * CELL_SIZE + indent_b * 2 + indent_a;
+    const height = (X + 1) * CELL_SIZE + indent_b * 2;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillStyle = "rgba(255,255,255,1)"
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let x = 0; x < X + 1; x++) {
+        for (let y = 0; y < Y + 1; y++) {
+            const px = y * CELL_SIZE + indent_b + indent_a;
+            const py = x * CELL_SIZE + indent_b;
+
+            if (x === 0 || y === 0) {
+                const text = format_candidate(x, y);
+                ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+                ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
+                if (y === 0) {
+                    ctx.fillText(text, px - indent_a / 2 + CELL_SIZE / 2, py + 1 + CELL_SIZE / 2);
+                } else {
+                    ctx.fillText(text, px + CELL_SIZE / 2, py + 1 + CELL_SIZE / 2);
+                }
+            } else {
+                const cell_element = CELL_ELEMENTS[(x - 1) * Y + (y - 1)];
+
+                if (cell_element.classList.contains('ans')) {
+                    ctx.fillStyle = 'rgba(140, 18, 18, 1)';
+                    ctx.strokeStyle = 'rgba(157, 99, 99, 1)';
+                } else if (cell_element.classList.contains('revealed')) {
+                    ctx.fillStyle = 'rgba(128, 128, 128, 1)';
+                    ctx.strokeStyle = 'rgba(166, 166, 166, 1)';
+                } else {
+                    ctx.fillStyle = 'rgba(25, 25, 25, 1)';
+                    ctx.strokeStyle = 'rgba(94, 94, 94, 1)';
+                }
+                ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
+                ctx.lineWidth = 1;
+                ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
+
+                const text = cell_element.textContent ? cell_element.textContent.toString() : " ";
+                ctx.fillStyle = "rgba(255, 255, 255, 1)";
+                ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
+                ctx.fillText(text, px + CELL_SIZE / 2, py + 1 + CELL_SIZE / 2);
+            }
+        }
+    }
+
+    canvas.toBlob(blob => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `minesweeper_${format_time(Date.now(), true)}.png`;
+        link.click();
+    });
+
+    send_notice('screenshot');
+}
+function format_candidate(x, y) {
+    if (x === 0 && y === 0) {
+        return ' ';
+    } else if (x === 0) {
+        if (y > 0 && y <= 26) {
+            return String.fromCharCode(64 + y);
+        } else if (y > 26 && y <= 52) {
+            return String.fromCharCode(70 + y);
+        } else {
+            return '?';
+        }
+    } else if (y === 0) {
+        if (x > 0 && x < 10) {
+            return ' ' + x.toString();
+        } else if (x < 100) {
+            return x.toString();
+        } else {
+            return ' ?';
+        }
+    } else {
+        return ' ';
+    }
+}
+
 
 
 // < Part 3 - Init / Load >
