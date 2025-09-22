@@ -48,19 +48,19 @@ public class RGBA_Color {
 
     @Override
     public String toString() {
-        return "(" + r + "," + g + "," + b + "," + a + ")";
+        return "rgba(" + r + ", " + g + ", " + b + ", " + a + ")";
     }
 
     public static void main(String[] args) {
-        System.out.println("RGBA-Color blending calculation");
+        System.out.println();
+        System.out.println("--- RGBA-Color blending calculation ---");
 
         RGBA_Color background = new RGBA_Color(255, 0, 0, 0.2);
         RGBA_Color foreground = new RGBA_Color(255, 0, 0, 0.9);
 
         RGBA_Color result = background.blend(foreground);
 
-        System.out.println("Background: " + background.toString());
-        System.out.println("Foreground: " + foreground.toString());
+        System.out.println("Background: " + background.toString() + "  Foreground: " + foreground.toString());
         System.out.println("Result: " + result.toString());
     }
 }
