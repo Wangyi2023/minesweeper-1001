@@ -73,7 +73,7 @@
                 <div id="background-menu" class="dropdown-menu" style="display: none">
                     <div class="option-row" >
                         <div class="option" onclick="set_background('default.jpg')">Default</div>
-                        <div class="option" onclick="set_background('01.jpg', `light`)">01</div>
+                        <div class="option" onclick="set_background('01.jpg', 'light')">01</div>
                     </div>
                     <div class="option-row" >
                         <div class="option" onclick="set_background('02.jpg')">02</div>
@@ -103,7 +103,15 @@
             </div>
 
             <div class="sidebar-button">
-                <div id="guide-btn" class="button" onclick="toggle_guide()">Guide</div>
+                <div id="guide-btn" class="button" onclick="open_guide()">Guide</div>
+            </div>
+
+            <div class="sidebar-button">
+                <div id="answer-btn" class="button" onclick="toggle_mines_visibility()" style="display: none">Answer</div>
+            </div>
+
+            <div class="sidebar-button">
+                <div id="exit-btn" class="button" onclick="exit_test()" style="display: none">Exit Test</div>
             </div>
 
         </div>
@@ -140,7 +148,7 @@
 <!-- Modal -->
 <div id="guide-modal" class="modal" onclick="close_guide(event)">
     <div id="guide-content" class="modal-content">
-        <span class="close-button" onclick="hide_guide()">×</span>
+        <span class="close-button" onclick="close_guide_with_button()">×</span>
         <div style="display: flex; flex-direction: row; gap: 30px;">
             <div style="flex: 1; text-align: left;">
                 <h2>游戏说明</h2>

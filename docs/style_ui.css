@@ -322,18 +322,18 @@ body.sidebar-collapsed .expand-button {
 
 .main-test-container {
     position: fixed;
-    top: 40%;
+    bottom: 10%;
     display: flex;
     justify-content: center;
     flex-direction: row;
     gap: 12px;
     padding: 20px;
-    z-index: 1000;
+    z-index: 10;
     background: transparent;
 }
 .test-container {
     display: grid;
-    grid-template-columns: repeat(6, 48px);
+    grid-template-columns: repeat(8, 48px);
     gap: 12px;
 }
 

@@ -97,11 +97,11 @@ const NOTICE_CONFIG = {
         color: 'rgba(255, 230, 0, 1)'
     },
     test_start: {
-        text: "Test Mode Activated.<br>Sidebar closed, shortcuts disabled.",
+        text: "Test Mode Activated.<br>Sidebar adjusted, shortcuts disabled.",
         color: 'rgba(0, 150, 255, 1)'
     },
     test_end: {
-        text: "Test Mode Deactivated.<br>Sidebar open, shortcuts enabled",
+        text: "Test Mode Deactivated.<br>Sidebar adjusted, shortcuts disabled.",
         color: 'rgba(0, 150, 255, 1)'
     },
     copied: {
@@ -568,7 +568,7 @@ function calculate_complete_module_collection() {
     雷的坐标排除在 inverse 之外，然后不断取模块集中的模块出来尝试缩小 inverse 的范围。
     inverse 元素能提供的一个重要信息是雷的总数，这是其它模块提供不了的。例如当棋盘上有 4 个未打开且不确定的方格，
     而目前只剩 1 个雷的位置不确定，那么创建出的初始的 inverse 就是 4 选 1 的状态，如果这时还有一个模块是 2 选 1
-    的状态，那么可以将这个模块从 inverse中剔除，更新后的 inverse 就是 2 选 0 的状态。
+    的状态，那么可以将这个模块从 inverse 中剔除，更新后的 inverse 就是 2 选 0 的状态。
     这种思想就是 inverses Element，所以我这样命名。
      */
     for (let i = 0; i < module_collection.length; i++) {
@@ -1309,14 +1309,17 @@ function deactivate_algorithm() {
     console.warn("Algorithm deactivated.");
 }
 function toggle_mines_visibility() {
-    const ans_button = document.getElementById('ans-button');
-    if (ans_button.classList.contains('selected')) {
-        ans_button.classList.remove('selected');
+    const ans_btn = document.getElementById('ans-btn');
+    const answer_btn = document.getElementById('answer-btn');
+    if (ans_btn.classList.contains('selected')) {
+        ans_btn.classList.remove('selected');
+        answer_btn.classList.remove('selected');
         for (let i = 0; i < X * Y; i++) {
             CELL_ELEMENTS[i].classList.remove('ans');
         }
     } else {
-        ans_button.classList.add('selected');
+        ans_btn.classList.add('selected');
+        answer_btn.classList.add('selected');
         for (let i = 0; i < X * Y; i++) {
             if (DATA[i] & Mi_) {
                 CELL_ELEMENTS[i].classList.add('ans');
@@ -1325,8 +1328,10 @@ function toggle_mines_visibility() {
     }
 }
 function update_mines_visibility() {
-    const ans_button = document.getElementById('ans-button');
-    if (!ans_button) return;
+    const ans_button = document.getElementById('ans-btn');
+    if (ans_button === null) return;
+    if (current_test_id === null) return;
+
     if (ans_button.classList.contains('selected')) {
         for (let i = 0; i < X * Y; i++) {
             if (DATA[i] & Mi_) {
@@ -1341,8 +1346,9 @@ function update_mines_visibility() {
         }
     }
 }
-function start_test(i) {
-    current_test_id = i;
+// Todo 1.7 - Test Mode
+function start_test(target_test_id) {
+    current_test_id = target_test_id;
     start();
     update_test_selection();
 }
@@ -1353,6 +1359,7 @@ function select_previous_test() {
     }
     start();
     update_test_selection();
+    update_mines_visibility();
 }
 function select_next_test() {
     current_test_id++;
@@ -1361,65 +1368,23 @@ function select_next_test() {
     }
     start();
     update_test_selection();
-}
-function update_test_selection() {
-    document.querySelectorAll('.test-option:not(.exit)').forEach(option => {
-        const testId = option.textContent.trim();
-        if (testId === format_number(current_test_id)) {
-            option.classList.add('selected');
-        } else {
-            option.classList.remove('selected');
-        }
-    });
+    update_mines_visibility();
 }
 function test() {
-    if (!document.body.classList.contains('sidebar-collapsed')) {
-        toggle_sidebar();
-    }
-    cursor_enabled = false;
     current_test_id = 1;
-    document.getElementById(`main-test-container`).style.display = 'flex';
-    const container = document.getElementById("test-container");
-    container.innerHTML = '';
-    container.style.display = 'grid';
-    for (let key = 1; key <= TEST_SIZE; key++) {
-        const test_option = document.createElement('div');
-        test_option.classList.add('test-option');
-        test_option.innerHTML = `${format_number(key)}`;
-        test_option.onclick = () => {
-            start_test(key);
-        };
-        container.appendChild(test_option);
-    }
+    cursor_enabled = false;
 
-    const ans_button = document.createElement('div');
-    ans_button.id = 'ans-button';
-    ans_button.classList.add('test-option', 'ctrl');
-    ans_button.innerHTML = 'Ans';
-    ans_button.onclick = () => {
-        toggle_mines_visibility();
-    };
-    container.appendChild(ans_button);
-
-    const exit_test_button = document.createElement('div');
-    exit_test_button.classList.add('test-option', 'ctrl');
-    exit_test_button.innerHTML = 'Exit';
-    exit_test_button.onclick = () => {
-        exit_test();
-    };
-    container.appendChild(exit_test_button);
-
+    generate_test_ui();
+    update_test_selection();
     send_notice('test_start', false);
-    start_test(current_test_id);
+    start();
 }
 function exit_test() {
     current_test_id = null;
+    document.getElementById('answer-btn').classList.remove('selected');
+
+    close_test_ui();
     send_notice('test_end', false);
-    if (document.body.classList.contains('sidebar-collapsed')) {
-        toggle_sidebar();
-    }
-    document.getElementById("test-container").innerHTML = '';
-    document.getElementById(`main-test-container`).style.display = `none`;
     start();
 }
 
@@ -1745,7 +1710,7 @@ function handle_keydown(event) {
 
     switch (key) {
         case 'escape':
-            hide_guide();
+            close_guide_with_button();
             close_difficulty_menu();
             close_background_menu();
             return;
@@ -1808,11 +1773,7 @@ function handle_keydown(event) {
 }
 // Todo 2.5 - Sidebar
 function toggle_sidebar() {
-    if (current_test_id !== null) {
-        return;
-    }
     document.body.classList.toggle('sidebar-collapsed');
-
     close_difficulty_menu();
     close_background_menu();
 }
@@ -1842,17 +1803,17 @@ function toggle_background_dropdown() {
     }
     close_difficulty_menu();
 }
-function toggle_guide() {
+function open_guide() {
     document.getElementById('guide-modal').style.display = 'block';
 }
-function hide_guide() {
+function close_guide_with_button() {
     document.getElementById('guide-modal').style.display = 'none';
     document.getElementById('guide-btn').classList.remove('selected');
 }
 function close_guide(event) {
     const content = document.getElementById('guide-content');
     if (!content.contains(event.target)) {
-        hide_guide();
+        close_guide_with_button();
     }
 }
 function open_difficulty_menu() {
@@ -1912,7 +1873,70 @@ function preload_backgrounds() {
         })
     }, 1000);
 }
+// Todo 2.9 - Test Mode UI
+function generate_test_ui() {
+    document.getElementById(`main-test-container`).style.display = 'flex';
+    const container = document.getElementById("test-container");
+    container.innerHTML = '';
+    container.style.display = 'grid';
+    for (let key = 1; key <= TEST_SIZE; key++) {
+        const test_option = document.createElement('div');
+        test_option.classList.add('test-option');
+        test_option.innerHTML = `${format_number(key)}`;
+        test_option.onclick = () => {
+            start_test(key);
+        };
+        container.appendChild(test_option);
+    }
 
+    const ans_button = document.createElement('div');
+    ans_button.id = 'ans-btn';
+    ans_button.classList.add('test-option', 'ctrl');
+    ans_button.innerHTML = 'Ans';
+    ans_button.onclick = () => {
+        toggle_mines_visibility();
+    };
+    container.appendChild(ans_button);
+
+    const exit_test_button = document.createElement('div');
+    exit_test_button.id = 'exit-test-button';
+    exit_test_button.classList.add('test-option', 'ctrl');
+    exit_test_button.innerHTML = 'Exit';
+    exit_test_button.onclick = () => {
+        exit_test();
+    };
+    container.appendChild(exit_test_button);
+
+    adjust_sidebar_buttons();
+}
+function close_test_ui() {
+    document.getElementById(`main-test-container`).style.display = `none`;
+    document.getElementById("test-container").innerHTML = '';
+
+    adjust_sidebar_buttons();
+}
+function adjust_sidebar_buttons() {
+    close_difficulty_menu();
+    close_background_menu();
+
+    for (const button_id of [
+        'difficulty-btn', 'mark-btn', 'hint-btn', 'solve-btn', 'solve-all-btn', 'guide-btn',
+        'answer-btn', 'exit-btn'
+    ]) {
+        const target_button = document.getElementById(button_id);
+        target_button.style.display = target_button.style.display === 'none' ? 'block' : 'none';
+    }
+}
+function update_test_selection() {
+    document.querySelectorAll('.test-option:not(.ctrl)').forEach(option => {
+        const testId = option.textContent.trim();
+        if (testId === format_number(current_test_id)) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
+}
 
 
 // < Part 3 - Init / Load >
