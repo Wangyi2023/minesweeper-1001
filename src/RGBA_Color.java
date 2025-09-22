@@ -60,8 +60,8 @@ public class RGBA_Color {
 
         RGBA_Color result = background.blend(foreground);
 
-        System.out.println("Background: " + background.toString() + "  Foreground: " + foreground.toString());
-        System.out.println("Result: " + result.toString());
+        System.out.println("Background: " + background + "  Foreground: " + foreground);
+        System.out.println("Result: " + result);
     }
 }
 
