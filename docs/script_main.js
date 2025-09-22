@@ -101,7 +101,7 @@ const NOTICE_CONFIG = {
         color: 'rgba(0, 150, 255, 1)'
     },
     test_end: {
-        text: "Test Mode Deactivated.<br>Sidebar adjusted, shortcuts disabled.",
+        text: "Test Mode Deactivated.<br>Sidebar adjusted, shortcuts enabled.",
         color: 'rgba(0, 150, 255, 1)'
     },
     copied: {
