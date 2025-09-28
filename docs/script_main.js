@@ -1554,6 +1554,22 @@ function cleanup_animation() {
         CELL_ELEMENTS[i].style.willChange = 'auto';
     }
 }
+function preload_backgrounds() {
+    const path = 'Background_Collection/';
+    const resources = [
+        '01.jpg',
+        '02.jpg',
+        '03.jpg',
+        '04.jpg',
+        '05.jpg',
+    ];
+    setTimeout(() => {
+        resources.forEach(resource => {
+            new Image().src = path + resource;
+            console.log(`Loaded Background ${resource}`);
+        })
+    }, 1000);
+}
 // Todo 2.2 - Edit Game Status
 function set_difficulty(difficulty) {
     current_difficulty = difficulty;
@@ -1623,6 +1639,13 @@ function update_solvability_info() {
         document.getElementById('solvability-info').textContent = solvable ? 'True' : 'False';
     } else {
         document.getElementById('solvability-info').textContent = '---';
+    }
+}
+function update_cursor() {
+    CELL_ELEMENTS[cursor_path].classList.remove('cursor');
+    if (cursor_enabled) {
+        const target_element = CELL_ELEMENTS[cursor_x * Y + cursor_y];
+        target_element.classList.add('cursor');
     }
 }
 // Todo 2.4 - Message / Shortcuts
@@ -1843,15 +1866,7 @@ function close_background_menu() {
     document.getElementById('background-menu').style.display = 'none';
     document.getElementById('background-btn').classList.remove('selected');
 }
-// Todo 2.6 - Cursor
-function update_cursor() {
-    CELL_ELEMENTS[cursor_path].classList.remove('cursor');
-    if (cursor_enabled) {
-        const target_element = CELL_ELEMENTS[cursor_x * Y + cursor_y];
-        target_element.classList.add('cursor');
-    }
-}
-// Todo 2.7 - Text Copy
+// Todo 2.6 - Text Copy
 function copy_to_clipboard(text) {
     navigator.clipboard.writeText(text)
         .then(() => {
@@ -1867,24 +1882,113 @@ function copy_to_clipboard(text) {
             send_notice('copied');
         });
 }
-// Todo 2.8 - Preload Image
-function preload_backgrounds() {
-    const path = 'Background_Collection/';
-    const resources = [
-        '01.jpg',
-        '02.jpg',
-        '03.jpg',
-        '04.jpg',
-        '05.jpg',
-    ];
-    setTimeout(() => {
-        resources.forEach(resource => {
-            new Image().src = path + resource;
-            console.log(`Loaded Background ${resource}`);
-        })
-    }, 1000);
+// Todo 2.7 - Screenshot
+async function screenshot_data(candidate=true) {
+    await document.fonts.ready;
+
+    const indent_a = 8;
+    const indent_b = 8;
+    const width = candidate ?
+        (Y + 1) * CELL_SIZE + indent_b * 2 + indent_a : Y * CELL_SIZE + indent_b * 2;
+    const height =  candidate ?
+        (X + 1) * CELL_SIZE + indent_b * 2 : X * CELL_SIZE + indent_b * 2;
+    let start_x = indent_b;
+    let start_y = indent_b;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillStyle = "rgba(255, 255, 255, 1)"
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (candidate) {
+        for (let x = 0; x < X + 1; x++) {
+            const text = format_candidate(x, 0);
+            const x_ = start_y + indent_a / 2 + CELL_SIZE / 2;
+            const y_ = start_x + CELL_SIZE * x + CELL_SIZE / 2 + 1;
+            ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+            ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
+            ctx.fillText(text, x_, y_);
+        }
+        start_y += CELL_SIZE + indent_a;
+        for (let y = 0; y < Y; y++) {
+            const text = format_candidate(0, y + 1);
+            const x_ = start_y + CELL_SIZE * y + CELL_SIZE / 2;
+            const y_ = start_x + CELL_SIZE / 2 + 1;
+            ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+            ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
+            ctx.fillText(text, x_, y_);
+        }
+        start_x += CELL_SIZE;
+    }
+
+    for (let x = 0; x < X; x++) {
+        for (let y = 0; y < Y; y++) {
+            const cell_element = CELL_ELEMENTS[x * Y + y];
+            const px = start_x + CELL_SIZE * x;
+            const py = start_y + CELL_SIZE * y;
+
+            if (cell_element.classList.contains('ans')) {
+                ctx.fillStyle = 'rgba(140, 18, 18, 1)';
+                ctx.strokeStyle = 'rgba(157, 99, 99, 1)';
+            } else if (cell_element.classList.contains('revealed')) {
+                ctx.fillStyle = 'rgba(128, 128, 128, 1)';
+                ctx.strokeStyle = 'rgba(166, 166, 166, 1)';
+            } else {
+                ctx.fillStyle = 'rgba(25, 25, 25, 1)';
+                ctx.strokeStyle = 'rgba(94, 94, 94, 1)';
+            }
+            ctx.fillRect(py, px, CELL_SIZE, CELL_SIZE);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(py + 0.5, px + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
+
+            const text = cell_element.textContent ? cell_element.textContent.toString() : " ";
+            const x_ = py + CELL_SIZE / 2;
+            const y_ = px + CELL_SIZE / 2 + 1;
+            ctx.fillStyle = "rgba(255, 255, 255, 1)";
+            ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
+            ctx.fillText(text, x_, y_);
+        }
+    }
+
+    canvas.toBlob(blob => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `minesweeper_${format_time(Date.now(), true)}.png`;
+        link.click();
+    });
+
+    send_notice('screenshot');
 }
-// Todo 2.9 - Test Mode UI
+function format_candidate(x, y) {
+    if (x === 0 && y === 0) {
+        return ' ';
+    } else if (x === 0) {
+        if (y > 0 && y <= 26) {
+            return String.fromCharCode(64 + y);
+        } else if (y > 26 && y <= 52) {
+            return String.fromCharCode(70 + y);
+        } else {
+            return '?';
+        }
+    } else if (y === 0) {
+        if (x > 0 && x < 10) {
+            return ' ' + x.toString();
+        } else if (x < 100) {
+            return x.toString();
+        } else {
+            return ' ?';
+        }
+    } else {
+        return ' ';
+    }
+}
+// Todo 2.8 - Test Mode UI
 function generate_test_ui() {
     document.getElementById(`main-test-container`).style.display = 'flex';
     const container = document.getElementById("test-container");
@@ -1943,96 +2047,6 @@ function update_test_selection() {
             option.classList.remove('selected');
         }
     });
-}
-async function screenshot_data() {
-    await document.fonts.ready;
-
-    const indent_a = 8;
-    const indent_b = 8;
-    const width = (Y + 1) * CELL_SIZE + indent_b * 2 + indent_a;
-    const height = (X + 1) * CELL_SIZE + indent_b * 2;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingEnabled = false;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    ctx.fillStyle = "rgba(255,255,255,1)"
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    for (let x = 0; x < X + 1; x++) {
-        for (let y = 0; y < Y + 1; y++) {
-            const px = y * CELL_SIZE + indent_b + indent_a;
-            const py = x * CELL_SIZE + indent_b;
-
-            if (x === 0 || y === 0) {
-                const text = format_candidate(x, y);
-                ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-                ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
-                if (y === 0) {
-                    ctx.fillText(text, px - indent_a / 2 + CELL_SIZE / 2, py + 1 + CELL_SIZE / 2);
-                } else {
-                    ctx.fillText(text, px + CELL_SIZE / 2, py + 1 + CELL_SIZE / 2);
-                }
-            } else {
-                const cell_element = CELL_ELEMENTS[(x - 1) * Y + (y - 1)];
-
-                if (cell_element.classList.contains('ans')) {
-                    ctx.fillStyle = 'rgba(140, 18, 18, 1)';
-                    ctx.strokeStyle = 'rgba(157, 99, 99, 1)';
-                } else if (cell_element.classList.contains('revealed')) {
-                    ctx.fillStyle = 'rgba(128, 128, 128, 1)';
-                    ctx.strokeStyle = 'rgba(166, 166, 166, 1)';
-                } else {
-                    ctx.fillStyle = 'rgba(25, 25, 25, 1)';
-                    ctx.strokeStyle = 'rgba(94, 94, 94, 1)';
-                }
-                ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
-                ctx.lineWidth = 1;
-                ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
-
-                const text = cell_element.textContent ? cell_element.textContent.toString() : " ";
-                ctx.fillStyle = "rgba(255, 255, 255, 1)";
-                ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
-                ctx.fillText(text, px + CELL_SIZE / 2, py + 1 + CELL_SIZE / 2);
-            }
-        }
-    }
-
-    canvas.toBlob(blob => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `minesweeper_${format_time(Date.now(), true)}.png`;
-        link.click();
-    });
-
-    send_notice('screenshot');
-}
-function format_candidate(x, y) {
-    if (x === 0 && y === 0) {
-        return ' ';
-    } else if (x === 0) {
-        if (y > 0 && y <= 26) {
-            return String.fromCharCode(64 + y);
-        } else if (y > 26 && y <= 52) {
-            return String.fromCharCode(70 + y);
-        } else {
-            return '?';
-        }
-    } else if (y === 0) {
-        if (x > 0 && x < 10) {
-            return ' ' + x.toString();
-        } else if (x < 100) {
-            return x.toString();
-        } else {
-            return ' ?';
-        }
-    } else {
-        return ' ';
-    }
 }
 
 
