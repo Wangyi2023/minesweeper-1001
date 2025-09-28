@@ -1576,9 +1576,9 @@ function set_difficulty(difficulty) {
     start();
     close_difficulty_menu();
 }
-function set_background(filename, title_image = `dark`) {
+function set_background(filename, title_image = 'dark') {
     document.documentElement.style.setProperty('--background-url', `url("Background_Collection/${filename}")`);
-    if (title_image === `light`) {
+    if (title_image === 'light') {
         document.getElementById("title-dark").style.display = `none`;
         document.getElementById("title-light").style.display = `block`;
     } else {
@@ -1883,7 +1883,7 @@ function copy_to_clipboard(text) {
         });
 }
 // Todo 2.7 - Screenshot
-async function screenshot_data(candidate=true) {
+async function screenshot_data(candidate = true) {
     await document.fonts.ready;
 
     const indent_a = 8;
