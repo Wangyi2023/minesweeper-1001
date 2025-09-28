@@ -61,7 +61,7 @@ const TEST_CONFIG = {
     11 : { Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
     12 : { Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
     13 : { Mines: [[0, 0], [0, 2], [2, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    14 : { Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] }
+    14 : { Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
 }
 const TEST_SIZE = Object.keys(TEST_CONFIG).length;
 /*
@@ -1886,10 +1886,10 @@ function copy_to_clipboard(text) {
 async function screenshot_data(candidate = true) {
     await document.fonts.ready;
 
-    const indent_a = 8;
-    const indent_b = 12;
+    const indent_a = 4;
+    const indent_b = 8;
     const width = candidate ?
-        (Y + 1) * CELL_SIZE + indent_b * 2 + indent_a : Y * CELL_SIZE + indent_b * 2;
+        (Y + 1) * CELL_SIZE + indent_b * 2 : Y * CELL_SIZE + indent_b * 2;
     const height =  candidate ?
         (X + 1) * CELL_SIZE + indent_b * 2 : X * CELL_SIZE + indent_b * 2;
     let start_x = indent_b;
@@ -1912,11 +1912,11 @@ async function screenshot_data(candidate = true) {
         ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
         for (let x = 0; x < X + 1; x++) {
             const text = format_candidate(x, 0);
-            const x_ = start_y + indent_a / 2 + CELL_SIZE / 2;
+            const x_ = start_y - indent_a + CELL_SIZE / 2;
             const y_ = start_x + CELL_SIZE * x + CELL_SIZE / 2 + 1;
             ctx.fillText(text, x_, y_);
         }
-        start_y += CELL_SIZE + indent_a;
+        start_y += CELL_SIZE;
         for (let y = 0; y < Y; y++) {
             const text = format_candidate(0, y + 1);
             const x_ = start_y + CELL_SIZE * y + CELL_SIZE / 2;
