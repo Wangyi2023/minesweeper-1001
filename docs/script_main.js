@@ -1902,6 +1902,7 @@ async function screenshot_data(candidate = true) {
     ctx.imageSmoothingEnabled = false;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
 
     ctx.fillStyle = "rgba(255, 255, 255, 1)"
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1949,7 +1950,6 @@ async function screenshot_data(candidate = true) {
             const x_ = py + CELL_SIZE / 2;
             const y_ = px + CELL_SIZE / 2 + 1;
             ctx.fillStyle = "rgba(255, 255, 255, 1)";
-            ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
             ctx.fillText(text, x_, y_);
         }
     }
