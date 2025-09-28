@@ -1887,7 +1887,7 @@ async function screenshot_data(candidate=true) {
     await document.fonts.ready;
 
     const indent_a = 8;
-    const indent_b = 8;
+    const indent_b = 12;
     const width = candidate ?
         (Y + 1) * CELL_SIZE + indent_b * 2 + indent_a : Y * CELL_SIZE + indent_b * 2;
     const height =  candidate ?
@@ -1907,12 +1907,12 @@ async function screenshot_data(candidate=true) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (candidate) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+        ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
         for (let x = 0; x < X + 1; x++) {
             const text = format_candidate(x, 0);
             const x_ = start_y + indent_a / 2 + CELL_SIZE / 2;
             const y_ = start_x + CELL_SIZE * x + CELL_SIZE / 2 + 1;
-            ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-            ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
             ctx.fillText(text, x_, y_);
         }
         start_y += CELL_SIZE + indent_a;
@@ -1920,8 +1920,6 @@ async function screenshot_data(candidate=true) {
             const text = format_candidate(0, y + 1);
             const x_ = start_y + CELL_SIZE * y + CELL_SIZE / 2;
             const y_ = start_x + CELL_SIZE / 2 + 1;
-            ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-            ctx.font = `bold ${FONT_SIZE}px Tahoma, 'Microsoft Sans Serif', Arial, sans-serif`;
             ctx.fillText(text, x_, y_);
         }
         start_x += CELL_SIZE;
