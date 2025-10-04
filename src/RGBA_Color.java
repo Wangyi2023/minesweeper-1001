@@ -55,8 +55,8 @@ public class RGBA_Color {
         System.out.println();
         System.out.println("--- RGBA-Color blending calculation ---");
 
-        RGBA_Color background = new RGBA_Color(255, 0, 0, 0.2);
-        RGBA_Color foreground = new RGBA_Color(255, 0, 0, 0.9);
+        RGBA_Color background = new RGBA_Color(255, 255, 255, 1);
+        RGBA_Color foreground = new RGBA_Color(0, 0, 0, 0.5);
 
         RGBA_Color result = background.blend(foreground);
 
