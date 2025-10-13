@@ -142,8 +142,50 @@
     </div>
 
     <div class="main-test-container" id="main-test-container" style="display: none">
+        <div style="flex: 1; text-align: left;">
+            <h2>Reset Algorithm Tests</h2>
+            <p>
+                To verify the reset algorithm's reliability in seamlessly redistributing mines when players trigger
+                one, the following test cases are provided. Click the Ans button to view mine locations, click the Esc button to
+                leave test mode.
+            </p>
+        </div>
         <div id="test-container" class="test-container">
             <!-- test-options loaded in scrip_main.js -->
+
+            <div class="test-module">
+                <h3>Test Type 1</h3>
+                <div id="test-options-1" class="test-option-list"></div>
+            </div>
+
+            <div class="test-module">
+                <h3>Test Type 2</h3>
+                <div id="test-options-2" class="test-option-list"></div>
+            </div>
+
+            <div class="test-module">
+                <h3>Test Type 3</h3>
+                <div id="test-options-3" class="test-option-list"></div>
+            </div>
+
+            <div class="test-module">
+                <h3>Test Type 4</h3>
+                <div id="test-options-4" class="test-option-list"></div>
+            </div>
+
+            <div class="test-module">
+                <h3>Test Type 5</h3>
+                <div id="test-options-5" class="test-option-list"></div>
+            </div>
+
+            <div class="test-module">
+                <h3>Controls</h3>
+                <div id="test-options-controls" class="test-option-list controls">
+                    <div id="ans-btn" class="test-option ctrl" onclick="toggle_mines_visibility()">Ans</div>
+                    <div id="esc-btn" class="test-option ctrl" onclick="exit_test()">Esc</div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>

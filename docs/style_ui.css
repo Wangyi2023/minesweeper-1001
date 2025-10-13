@@ -64,6 +64,15 @@ h2 {
     font-weight: bold;
     user-select: none;
 }
+h3 {
+    display: block;
+    font-size: 14px;
+    margin-top: 12px;
+    margin-bottom: 8px;
+    font-weight: bold;
+    user-select: none;
+    text-align: center;
+}
 
 
 /* Part 1 - Sidebar */
@@ -136,9 +145,6 @@ body.sidebar-collapsed .expand-button {
     pointer-events: auto;
 }
 
-.controls {
-    margin-top: 24px;
-}
 .sidebar-button {
     position: relative;
     width: 100%;
@@ -285,7 +291,7 @@ body.sidebar-collapsed .expand-button {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    width: 400px;
+    width: 320px;
 }
 .notice {
     width: 100%;
@@ -320,29 +326,51 @@ body.sidebar-collapsed .expand-button {
     margin-top: 0;
 }
 
+
+/* Part 3 - Test */
 .main-test-container {
     position: fixed;
-    bottom: 10%;
+    top: 50%;
+    width: 600px;
     display: flex;
     justify-content: center;
-    flex-direction: row;
-    gap: 12px;
-    padding: 20px;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
     z-index: 10;
     background: transparent;
 }
 .test-container {
+    display: flex;
+    justify-content: center;
+    flex-direction: row;
+    gap: 20px;
+    padding: 0;
+    margin-left: -4px;
+}
+.test-module {
+    background: transparent;
+    width: 100px;
+    gap: 0;
+    padding: 0;
+}
+.test-option-list {
     display: grid;
-    grid-template-columns: repeat(8, 48px);
-    gap: 12px;
+    grid-template-columns: repeat(2, 40px);
+    gap: 0;
+    justify-content: left;
+}
+.test-option-list.controls {
+    grid-template-columns: repeat(1, 40px);
+    padding-left: 10px;
 }
 
 .test-option {
     font-family: 'Tahoma', 'Microsoft Sans Serif', 'Arial', sans-serif;
-    border-radius: 12px;
-    aspect-ratio: 1 / 1;
+    height: 40px;
+    width: 40px;
     font-weight: bold;
-    font-size: 24px;
+    font-size: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -353,16 +381,13 @@ body.sidebar-collapsed .expand-button {
     cursor: pointer;
     transition: all 0.1s ease;
     user-select: none;
-    background: rgba(200, 200, 200, 0.6);
-    border: 2px solid rgba(255, 255, 255, 0.5);
+    background: transparent;
+    border: none;
 }
 .test-option.ctrl {
+    width: 60px;
     color: rgba(200, 20, 20, 1);
     font-size: 18px;
-    text-shadow:
-            0 0 2px rgba(255, 255, 255, 1),
-            0 0 4px rgba(220, 220, 220, 0.4),
-            0 0 8px rgba(200, 200, 200, 0.2);
 }
 .test-option:hover {
     background: rgba(255, 255, 255, 0.7);
@@ -376,7 +401,7 @@ body.sidebar-collapsed .expand-button {
 .test-option.selected::after {
     content: "";
     position: absolute;
-    bottom: 5px;
+    bottom: 3px;
     left: 50%;
     transform: translateX(-50%);
     width: 20%;
@@ -387,7 +412,7 @@ body.sidebar-collapsed .expand-button {
 .test-option.ctrl.selected::after {
     content: "";
     position: absolute;
-    bottom: 5px;
+    bottom: 3px;
     left: 50%;
     transform: translateX(-50%);
     width: 30%;
@@ -397,7 +422,7 @@ body.sidebar-collapsed .expand-button {
 }
 
 
-/* Part 3 - Element / Properties */
+/* Part 4 - Element / Properties */
 .dropdown {
     position: relative;
     width: 100%;

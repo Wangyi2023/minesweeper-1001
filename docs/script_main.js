@@ -48,20 +48,20 @@ const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 测试通过在控制台使用 test 函数调用，以下测试主要用于检测 reset_mines 功能。
  */
 const TEST_CONFIG = {
-    1  : { Mines: [[0, 0], [2, 0], [2, 1]] },
-    2  : { Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
-    3  : { Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
-    4  : { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
-    5  : { Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [6, 0]] },
-    6  : { Mines: [[0, 0], [1, 1], [2, 2]] },
-    7  : { Mines: [[0, 1], [1, 0], [2, 2]] },
-    8  : { Mines: [[0, 1], [1, 0], [2, 2], [5, 5], [6, 7], [7, 6]] },
-    9  : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
-    10 : { Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
-    11 : { Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    12 : { Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    13 : { Mines: [[0, 0], [0, 2], [2, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    14 : { Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    1  : { Type: 1, Mines: [[0, 0], [2, 0], [2, 1]] },
+    2  : { Type: 1, Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
+    3  : { Type: 1, Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
+    4  : { Type: 2, Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
+    5  : { Type: 2, Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [6, 0]] },
+    6  : { Type: 2, Mines: [[0, 0], [1, 1], [2, 2]] },
+    7  : { Type: 2, Mines: [[0, 1], [1, 0], [2, 2]] },
+    8  : { Type: 3, Mines: [[0, 1], [1, 0], [2, 2], [5, 5], [6, 7], [7, 6]] },
+    9  : { Type: 3, Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
+    10 : { Type: 3, Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
+    11 : { Type: 4, Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    12 : { Type: 4, Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    13 : { Type: 5, Mines: [[0, 0], [0, 2], [2, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    14 : { Type: 5, Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
 }
 const TEST_SIZE = Object.keys(TEST_CONFIG).length;
 /*
@@ -97,11 +97,11 @@ const NOTICE_CONFIG = {
         color: 'rgba(255, 230, 0, 1)'
     },
     test_start: {
-        text: "Test Mode Activated.<br>Sidebar adjusted, shortcuts disabled.",
+        text: "Test Mode Activated.<br>Sidebar adjusted, shortcuts disabled, background locked to default.",
         color: 'rgba(0, 150, 255, 1)'
     },
     test_end: {
-        text: "Test Mode Deactivated.<br>Sidebar adjusted, shortcuts enabled.",
+        text: "Test Mode Deactivated.<br>Sidebar adjusted, shortcuts enabled, background unlocked.",
         color: 'rgba(0, 150, 255, 1)'
     },
     copied: {
@@ -109,11 +109,11 @@ const NOTICE_CONFIG = {
         color: 'rgba(0, 150, 255, 1)'
     },
     algorithm_off: {
-        text: "Algorithm OFF.<br>Algorithm off due to large board size.",
+        text: "Algorithm OFF.<br>Algorithm turned off for better performance on large boards.",
         color: 'rgba(255, 230, 0, 1)'
     },
     animation_off: {
-        text: "Animation OFF.<br>Animation off due to large board size.",
+        text: "Animation OFF.<br>Animation turned off for better performance on large boards.",
         color: 'rgba(255, 230, 0, 1)'
     },
     default: {
@@ -215,7 +215,7 @@ function start() {
     render_border();
     init_information_box();
     update_solvability_info();
-    update_mines_visibility()
+    update_mines_visibility();
     update_cursor();
     play_start_animation();
 }
@@ -1354,7 +1354,7 @@ function update_mines_visibility() {
     }
 }
 // Todo 1.7 - Test Mode
-function start_test(target_test_id) {
+function select_test(target_test_id) {
     current_test_id = target_test_id;
     start();
     update_test_selection();
@@ -1362,14 +1362,14 @@ function start_test(target_test_id) {
 function select_previous_test() {
     current_test_id--;
     if (current_test_id === 0) {
-        current_test_id = Object.keys(TEST_CONFIG).length;
+        current_test_id = TEST_SIZE;
     }
     start();
     update_test_selection();
 }
 function select_next_test() {
     current_test_id++;
-    if (current_test_id > Object.keys(TEST_CONFIG).length) {
+    if (current_test_id > TEST_SIZE) {
         current_test_id = 1;
     }
     start();
@@ -1379,6 +1379,7 @@ function test() {
     current_test_id = 1;
     cursor_enabled = false;
 
+    set_background();
     generate_test_ui();
     adjust_sidebar_buttons();
     update_test_selection();
@@ -1576,7 +1577,7 @@ function set_difficulty(difficulty) {
     start();
     close_difficulty_menu();
 }
-function set_background(filename, title_image = 'dark') {
+function set_background(filename = 'default.jpg', title_image = 'dark') {
     document.documentElement.style.setProperty('--background-url', `url("Background_Collection/${filename}")`);
     if (title_image === 'light') {
         document.getElementById("title-dark").style.display = `none`;
@@ -1693,6 +1694,13 @@ function send_notice(type, locked = true) {
         }, 300);
     }, TIMEOUT);
 }
+function notice_test() {
+    Object.keys(NOTICE_CONFIG).forEach((type, index) => {
+        setTimeout(() => {
+            send_notice(type, false);
+        }, index * 500);
+    });
+}
 function send_test_result_notice(text) {
     if (current_test_id === null) {
         return;
@@ -1722,7 +1730,7 @@ function handle_keydown(event) {
     if (current_test_id !== null) {
         switch (key) {
             case 'r':
-                start_test(current_test_id);
+                select_test(current_test_id);
                 return;
             case 'escape':
                 exit_test();
@@ -1989,48 +1997,51 @@ function format_candidate(x, y) {
 // Todo 2.8 - Test Mode UI
 function generate_test_ui() {
     document.getElementById(`main-test-container`).style.display = 'flex';
-    const container = document.getElementById("test-container");
-    container.innerHTML = '';
-    container.style.display = 'grid';
+    document.getElementById('ans-btn').classList.remove('selected');
+
+    const tests_by_type = {};
     for (let key = 1; key <= TEST_SIZE; key++) {
-        const test_option = document.createElement('div');
-        test_option.classList.add('test-option');
-        test_option.innerHTML = `${format_number(key)}`;
-        test_option.onclick = () => {
-            start_test(key);
-        };
-        container.appendChild(test_option);
+        const test_type = TEST_CONFIG[key].Type;
+        if (!tests_by_type[test_type]) {
+            tests_by_type[test_type] = [];
+        }
+        tests_by_type[test_type].push(key);
     }
 
-    const ans_button = document.createElement('div');
-    ans_button.id = 'ans-btn';
-    ans_button.classList.add('test-option', 'ctrl');
-    ans_button.innerHTML = 'Ans';
-    ans_button.onclick = () => {
-        toggle_mines_visibility();
-    };
-    container.appendChild(ans_button);
+    Object.keys(tests_by_type).forEach(type => {
+        const test_options_list = document.getElementById(`test-options-${type}`);
+        if (test_options_list) {
+            tests_by_type[type].forEach(test_id => {
+                const test_option = document.createElement('div');
+                test_option.classList.add('test-option');
+                test_option.innerHTML = `${format_number(test_id)}`;
+                test_option.onclick = () => {
+                    select_test(test_id);
+                };
+                test_options_list.appendChild(test_option);
+            });
+        }
+    });
 
-    const exit_test_button = document.createElement('div');
-    exit_test_button.id = 'exit-test-button';
-    exit_test_button.classList.add('test-option', 'ctrl');
-    exit_test_button.innerHTML = 'Exit';
-    exit_test_button.onclick = () => {
-        exit_test();
-    };
-    container.appendChild(exit_test_button);
+    update_test_selection();
 }
 function close_test_ui() {
     document.getElementById(`main-test-container`).style.display = `none`;
-    document.getElementById("test-container").innerHTML = '';
+
+    for (let i = 0; i < 5; i++) {
+        const test_options_list = document.getElementById(`test-options-${i + 1}`);
+        if (test_options_list) {
+            test_options_list.innerHTML = '';
+        }
+    }
 }
 function adjust_sidebar_buttons() {
     close_difficulty_menu();
     close_background_menu();
 
     for (const button_id of [
-        'difficulty-btn', 'mark-btn', 'hint-btn', 'solve-btn', 'solve-all-btn', 'guide-btn',
-        'answer-btn', 'exit-btn'
+        'difficulty-btn', 'background-btn', 'mark-btn', 'hint-btn', 'solve-btn', 'solve-all-btn',
+        'guide-btn', 'answer-btn', 'exit-btn'
     ]) {
         const target_button = document.getElementById(button_id);
         target_button.style.display = target_button.style.display === 'none' ? 'block' : 'none';

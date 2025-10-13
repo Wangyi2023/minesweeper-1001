@@ -1,4 +1,4 @@
-/* Part 4 - Board */
+/* Part 5 - Board */
 .board {
     display: grid;
     background: transparent;
@@ -24,7 +24,7 @@
 }
 
 
-/* Part 5 - Cell */
+/* Part 6 - Cell */
 .cell {
     background-color: rgba(0, 0, 0, 0.9);
     width: 100%;
@@ -119,7 +119,7 @@
 }
 
 
-/* Part 6 - Frames */
+/* Part 7 - Frames */
 @keyframes cursorPulseRed {
     0%, 100% {
         transform: scale(1);
@@ -145,7 +145,6 @@
                 0 0 24px 6px rgba(255, 0, 0, 0.5);
     }
 }
-
 
 @keyframes cursorPulse {
     0%, 100% {
