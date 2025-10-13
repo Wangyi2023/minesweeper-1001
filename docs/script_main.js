@@ -69,59 +69,73 @@ const TEST_SIZE = Object.keys(TEST_CONFIG).length;
  */
 const NOTICE_CONFIG = {
     congrats: {
-        text: "Congratulations.<br>You've successfully completed Minesweeper.",
+        title: "Congratulations.",
+        content: "You've successfully completed Minesweeper.",
         color: 'rgba(0, 220, 80, 1)'
     },
     failed: {
-        text: "Failed.<br>You triggered a mine.",
+        title: "Failed.",
+        content: "You triggered a mine.",
         color: 'rgba(255, 20, 53, 1)'
     },
     alg_not_enabled: {
-        text: "Warning.<br>Algorithm was not activated.",
+        title: "Warning.",
+        content: "Algorithm was not activated.",
         color: 'rgba(255, 150, 0, 1)'
     },
     reset_complete: {
-        text: "Reset Complete.",
+        title: "Reset Complete.",
+        content: null,
         color: 'rgba(0, 220, 80, 1)'
     },
     reset_failed: {
-        text: "Reset Failed.",
+        title: "Reset Failed.",
+        content: null,
         color: 'rgba(255, 20, 53, 1)'
     },
     alg_activated: {
-        text: "Algorithm Activated.",
+        title: "Algorithm Activated.",
+        content: null,
         color: 'rgba(255, 230, 0, 1)'
     },
     alg_deactivated: {
-        text: "Algorithm Deactivated.",
+        title: "Algorithm Deactivated.",
+        content: null,
         color: 'rgba(255, 230, 0, 1)'
     },
     test_start: {
-        text: "Test Mode Activated.<br>Sidebar adjusted, shortcuts disabled, background locked to default.",
+        title: "Test Mode Activated.",
+        content: "Sidebar adjusted, shortcuts disabled, background locked to default.",
         color: 'rgba(0, 150, 255, 1)'
     },
     test_end: {
-        text: "Test Mode Deactivated.<br>Sidebar adjusted, shortcuts enabled, background unlocked.",
+        title: "Test Mode Deactivated.",
+        content: "Sidebar adjusted, shortcuts enabled, background unlocked.",
         color: 'rgba(0, 150, 255, 1)'
     },
     copied: {
-        text: "Hint.<br>Email address copied to clipboard.",
+        title: "Hint.",
+        content: "Email address copied to clipboard.",
         color: 'rgba(0, 150, 255, 1)'
     },
     algorithm_off: {
-        text: "Algorithm OFF.<br>Algorithm turned off for better performance on large boards.",
+        title: "Algorithm OFF.",
+        content: "Algorithm turned off for better performance on large boards.",
         color: 'rgba(255, 230, 0, 1)'
     },
     animation_off: {
-        text: "Animation OFF.<br>Animation turned off for better performance on large boards.",
+        title: "Animation OFF.",
+        content: "Animation turned off for better performance on large boards.",
         color: 'rgba(255, 230, 0, 1)'
     },
     default: {
-        text: "Notice.<br>Default Notice Content - 1024 0010 0024.",
+        title: "Notice.",
+        content: "Default Notice Content - 1024 0024.",
         color: 'rgba(0, 150, 255, 1)'
     },
     screenshot: {
-        text: "Screenshot Completed.<br>Screenshot saved to default folder",
+        title: "Screenshot Completed.",
+        content: "Screenshot saved to default folder",
         color: 'rgba(0, 220, 80, 1)'
     }
 };
@@ -1659,22 +1673,26 @@ function send_notice(type, locked = true) {
         last_notice_time = now;
     }
 
-    const { text, color } = NOTICE_CONFIG[type] || NOTICE_CONFIG.default;
+    const { title, content, color } = NOTICE_CONFIG[type] || NOTICE_CONFIG.default;
 
     const container = document.getElementById('notice-container');
     const notice = document.createElement('div');
-    const notice_text = document.createElement('div');
+    const notice_title = document.createElement('div');
+    const notice_content = document.createElement('div');
     const notice_progress = document.createElement('div');
 
     notice.classList.add('notice');
-    notice_text.classList.add('notice-text');
+    notice_title.classList.add('notice-title');
+    notice_content.classList.add('notice-content');
     notice_progress.classList.add('notice-progress');
 
-    notice_text.innerHTML = text;
+    notice_title.innerHTML = title;
+    notice_content.innerHTML = content;
     notice_progress.style.backgroundColor = color;
     notice_progress.style.animation = `progressShrink ${TIMEOUT}ms linear forwards`;
 
-    notice.appendChild(notice_text);
+    notice.appendChild(notice_title);
+    notice.appendChild(notice_content);
     notice.appendChild(notice_progress);
 
     notice.onclick = () => {
@@ -1694,25 +1712,23 @@ function send_notice(type, locked = true) {
         }, 300);
     }, TIMEOUT);
 }
-function notice_test() {
-    Object.keys(NOTICE_CONFIG).forEach((type, index) => {
-        setTimeout(() => {
-            send_notice(type, false);
-        }, index * 500);
-    });
-}
 function send_test_result_notice(text) {
     if (current_test_id === null) {
         return;
     }
     const container = document.getElementById('notice-container');
     const test_result_notice = document.createElement('div');
-    const notice_text = document.createElement('div');
+    const notice_title = document.createElement('div');
+    const notice_content = document.createElement('div');
 
     test_result_notice.classList.add('notice', 'test-result');
-    notice_text.classList.add('notice-text');
-    notice_text.innerHTML = text + format_time(Date.now());
-    test_result_notice.appendChild(notice_text);
+    notice_title.classList.add('notice-title');
+    notice_content.classList.add('notice-content');
+
+    notice_title.innerHTML = "Test Result";
+    notice_content.innerHTML = text + format_time(Date.now());
+    test_result_notice.appendChild(notice_title);
+    test_result_notice.appendChild(notice_content);
 
     test_result_notice.onclick = () => {
         if (container.contains(test_result_notice)) {
@@ -1722,6 +1738,18 @@ function send_test_result_notice(text) {
     test_result_notice.style.animation = 'slideInRight 0.3s ease forwards';
 
     container.appendChild(test_result_notice);
+}
+function notice_test() {
+    let time_out = 0;
+    Object.keys(NOTICE_CONFIG).forEach(type => {
+        setTimeout(() => {
+            send_notice(type, false);
+        }, time_out);
+        time_out += 500;
+    });
+    setTimeout(() => {
+        send_test_result_notice("1024 0024<br>");
+    }, time_out)
 }
 function handle_keydown(event) {
     const key = event.key.toLowerCase();

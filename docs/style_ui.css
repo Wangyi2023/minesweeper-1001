@@ -312,9 +312,17 @@ body.sidebar-collapsed .expand-button {
 .notice.test-result:hover {
     background: rgba(255, 232, 232, 1);
 }
-.notice-text {
-    padding: 10px 20px;
+.notice-title {
+    padding: 10px 20px 0 20px;
     font-size: 16px;
+    font-weight: bold;
+    line-height: 1.5;
+    color: #333;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+.notice-content {
+    padding: 2px 20px 10px 20px;
+    font-size: 14px;
     font-weight: bold;
     line-height: 1.5;
     color: #333;
