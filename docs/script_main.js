@@ -162,6 +162,7 @@ let last_notice_time = 0;
 
 let algorithm_enabled = true;
 let cursor_enabled = false;
+let mines_visible = false;
 
 let counter_revealed, counter_marked;
 let cursor_x, cursor_y, cursor_path;
@@ -180,7 +181,7 @@ function start() {
     ID++;
     clear_all_animation_timers();
 
-    if (current_test_id !== null) {
+    if (current_test_id > 0) {
         const params = TEST_CONFIG[current_test_id];
         X = 8;
         Y = 8;
@@ -1327,33 +1328,12 @@ function deactivate_algorithm() {
     console.warn("Algorithm deactivated.");
 }
 function toggle_mines_visibility() {
-    const ans_btn = document.getElementById('ans-btn');
-    const answer_btn = document.getElementById('answer-btn');
-    if (ans_btn === null) {
-        return;
-    }
-    if (ans_btn.classList.contains('selected')) {
-        ans_btn.classList.remove('selected');
-        answer_btn.classList.remove('selected');
-        for (let i = 0; i < X * Y; i++) {
-            CELL_ELEMENTS[i].classList.remove('ans');
-        }
-    } else {
-        ans_btn.classList.add('selected');
-        answer_btn.classList.add('selected');
-        for (let i = 0; i < X * Y; i++) {
-            if (DATA[i] & Mi_) {
-                CELL_ELEMENTS[i].classList.add('ans');
-            }
-        }
-    }
+    mines_visible = !mines_visible;
+    update_mines_visibility();
+    update_ans_button_selection();
 }
 function update_mines_visibility() {
-    const ans_button = document.getElementById('ans-btn');
-    if (ans_button === null) return;
-    if (current_test_id === null) return;
-
-    if (ans_button.classList.contains('selected')) {
+    if (mines_visible) {
         for (let i = 0; i < X * Y; i++) {
             if (DATA[i] & Mi_) {
                 CELL_ELEMENTS[i].classList.add('ans');
@@ -1371,7 +1351,7 @@ function update_mines_visibility() {
 function select_test(target_test_id) {
     current_test_id = target_test_id;
     start();
-    update_test_selection();
+    update_reset_test_selection();
 }
 function select_previous_test() {
     current_test_id--;
@@ -1379,7 +1359,7 @@ function select_previous_test() {
         current_test_id = TEST_SIZE;
     }
     start();
-    update_test_selection();
+    update_reset_test_selection();
 }
 function select_next_test() {
     current_test_id++;
@@ -1387,25 +1367,32 @@ function select_next_test() {
         current_test_id = 1;
     }
     start();
-    update_test_selection();
+    update_reset_test_selection();
 }
 function test() {
-    current_test_id = 1;
     cursor_enabled = false;
 
     set_background();
-    generate_test_ui();
-    adjust_sidebar_buttons();
-    update_test_selection();
     send_notice('test_start', false);
+    reset_test();
+}
+function reset_test() {
+    current_test_id = 1;
+    mines_visible = false;
+
+    update_ans_button_selection();
+    generate_reset_test_ui();
+    update_reset_test_selection();
+    update_sidebar_buttons();
     start();
 }
 function exit_test() {
     current_test_id = null;
-    document.getElementById('answer-btn').classList.remove('selected');
+    mines_visible = false;
 
-    close_test_ui();
-    adjust_sidebar_buttons();
+    update_ans_button_selection();
+    close_reset_test_ui();
+    update_sidebar_buttons();
     send_notice('test_end', false);
     start();
 }
@@ -1584,6 +1571,29 @@ function preload_backgrounds() {
             console.log(`Loaded Background ${resource}`);
         })
     }, 1000);
+}
+function update_sidebar_buttons() {
+    close_difficulty_menu();
+    close_background_menu();
+
+    const buttons_visibility = {
+        'information-btn': true,
+        'start-btn': true,
+        'difficulty-btn': current_test_id === null,
+        'background-btn': current_test_id === null,
+        'mark-btn': current_test_id === null,
+        'hint-btn': current_test_id === null,
+        'solve-btn': current_test_id === null,
+        'solve-all-btn': current_test_id === null,
+        'screenshot-btn': true,
+        'guide-btn': current_test_id === null,
+        'answer-btn': current_test_id !== null,
+        'test-reset-btn': false,
+        'exit-btn': current_test_id !== null
+    }
+    for (const btn_id of Object.keys(buttons_visibility)) {
+        document.getElementById(btn_id).style.display = buttons_visibility[btn_id] ? 'block' : 'none';
+    }
 }
 // Todo 2.2 - Edit Game Status
 function set_difficulty(difficulty) {
@@ -2023,9 +2033,15 @@ function format_candidate(x, y) {
     }
 }
 // Todo 2.8 - Test Mode UI
-function generate_test_ui() {
-    document.getElementById(`main-test-container`).style.display = 'flex';
-    document.getElementById('ans-btn').classList.remove('selected');
+function generate_reset_test_ui() {
+    document.getElementById('main-test-container').style.display = 'flex';
+
+    for (let i = 0; i < 5; i++) {
+        const test_options_list = document.getElementById(`test-options-${i + 1}`);
+        if (test_options_list) {
+            test_options_list.innerHTML = '';
+        }
+    }
 
     const tests_by_type = {};
     for (let key = 1; key <= TEST_SIZE; key++) {
@@ -2051,39 +2067,32 @@ function generate_test_ui() {
         }
     });
 
-    update_test_selection();
+    update_reset_test_selection();
 }
-function close_test_ui() {
-    document.getElementById(`main-test-container`).style.display = `none`;
-
-    for (let i = 0; i < 5; i++) {
-        const test_options_list = document.getElementById(`test-options-${i + 1}`);
-        if (test_options_list) {
-            test_options_list.innerHTML = '';
-        }
-    }
+function close_reset_test_ui() {
+    document.getElementById('main-test-container').style.display = 'none';
 }
-function adjust_sidebar_buttons() {
-    close_difficulty_menu();
-    close_background_menu();
-
-    for (const button_id of [
-        'difficulty-btn', 'background-btn', 'mark-btn', 'hint-btn', 'solve-btn', 'solve-all-btn',
-        'guide-btn', 'answer-btn', 'exit-btn'
-    ]) {
-        const target_button = document.getElementById(button_id);
-        target_button.style.display = target_button.style.display === 'none' ? 'block' : 'none';
-    }
-}
-function update_test_selection() {
+function update_reset_test_selection() {
     document.querySelectorAll('.test-option:not(.ctrl)').forEach(option => {
-        const testId = option.textContent.trim();
-        if (testId === format_number(current_test_id)) {
+        const test_id = option.textContent.trim();
+        if (test_id === format_number(current_test_id)) {
             option.classList.add('selected');
         } else {
             option.classList.remove('selected');
         }
     });
+}
+function update_ans_button_selection() {
+    const ans_test_btn = document.getElementById('ans-test-btn');
+    const answer_btn = document.getElementById('answer-btn');
+
+    if (mines_visible) {
+        ans_test_btn.classList.add('selected');
+        answer_btn.classList.add('selected');
+    } else {
+        ans_test_btn.classList.remove('selected');
+        answer_btn.classList.remove('selected');
+    }
 }
 
 
@@ -2093,4 +2102,5 @@ function update_test_selection() {
 // Todo 3.1 - Init Game / Load Monitor
 document.addEventListener('keydown', handle_keydown);
 preload_backgrounds();
+update_sidebar_buttons();
 start();

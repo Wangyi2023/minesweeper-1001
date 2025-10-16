@@ -111,11 +111,15 @@
             </div>
 
             <div class="sidebar-button">
-                <div id="answer-btn" class="button" onclick="toggle_mines_visibility()" style="display: none">Answer</div>
+                <div id="answer-btn" class="button" onclick="toggle_mines_visibility()">Answer</div>
             </div>
 
             <div class="sidebar-button">
-                <div id="exit-btn" class="button" onclick="exit_test()" style="display: none">Exit Test</div>
+                <div id="test-reset-btn" class="button" onclick="reset_test()">Reset Test</div>
+            </div>
+
+            <div class="sidebar-button">
+                <div id="exit-btn" class="button" onclick="exit_test()">Exit Test</div>
             </div>
 
         </div>
@@ -143,7 +147,7 @@
 
     <div class="main-test-container" id="main-test-container" style="display: none">
         <div style="flex: 1; text-align: left;">
-            <h2>Reset Algorithm Tests</h2>
+            <h2>Reset Algorithm Validation Test</h2>
             <p>
                 To verify the reset algorithm's reliability in seamlessly redistributing mines when players trigger
                 one, the following test cases are provided. Click the Ans button to view mine locations, click the Esc button to
@@ -180,9 +184,9 @@
 
             <div class="test-module">
                 <h3>Controls</h3>
-                <div id="test-options-controls" class="test-option-list controls">
-                    <div id="ans-btn" class="test-option ctrl" onclick="toggle_mines_visibility()">Ans</div>
-                    <div id="esc-btn" class="test-option ctrl" onclick="exit_test()">Esc</div>
+                <div id="test-b-options-controls" class="test-option-list controls">
+                    <div id="ans-test-btn" class="test-option ctrl" onclick="toggle_mines_visibility()">Ans</div>
+                    <div id="esc-test-btn" class="test-option ctrl" onclick="exit_test()">Esc</div>
                 </div>
             </div>
 
