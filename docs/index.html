@@ -103,6 +103,18 @@
             </div>
 
             <div class="sidebar-button">
+                <div id="analyse-test-btn" class="button" onclick="calculate_and_visualize_solutions()">Analyse</div>
+            </div>
+
+            <div class="sidebar-button">
+                <div id="continue-test-btn" class="button" onclick="continue_solving_test()">Continue</div>
+            </div>
+
+            <div class="sidebar-button">
+                <div id="complete-test-btn" class="button" onclick="complete_full_test()">Complete</div>
+            </div>
+
+            <div class="sidebar-button">
                 <div id="screenshot-btn" class="button" onclick="screenshot_data()">Screenshot</div>
             </div>
 
@@ -115,7 +127,11 @@
             </div>
 
             <div class="sidebar-button">
-                <div id="test-reset-btn" class="button" onclick="reset_test()">Reset Test</div>
+                <div id="solving-test-btn" class="button" onclick="solving_test()">Solving Test</div>
+            </div>
+
+            <div class="sidebar-button">
+                <div id="reset-test-btn" class="button" onclick="reset_test()">Reset Test</div>
             </div>
 
             <div class="sidebar-button">
@@ -145,48 +161,70 @@
         <div id="border-outline" class="border-outline"></div>
     </div>
 
-    <div class="main-test-container" id="main-test-container" style="display: none">
+    <div class="main-test-container-a" id="main-test-container-a" style="display: none">
+        <div style="flex: 1; text-align: left;">
+            <h2>Solving Algorithm Completeness Test</h2>
+            <p>
+                Validates the module-based solving algorithm's completeness by comparing its solutions against a mathematically
+                complete SAT solver.
+            </p>
+        </div>
+        <div id="test-container-a" class="test-container">
+
+            <div class="test-module-a">
+                <h3>Controls</h3>
+                <div id="test-controls-a" class="test-ctrl-a">
+                    <div id="rst-test-btn" class="test-option ctrl-a" onclick="start()">Rst</div>
+                    <div id="ans-test-btn-a" class="test-option ctrl-a" onclick="toggle_mines_visibility()">Ans</div>
+                    <div id="esc-test-btn-a" class="test-option ctrl-a" onclick="exit_test()">Esc</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="main-test-container-b" id="main-test-container-b" style="display: none">
         <div style="flex: 1; text-align: left;">
             <h2>Reset Algorithm Validation Test</h2>
             <p>
-                To verify the reset algorithm's reliability in seamlessly redistributing mines when players trigger
-                one, the following test cases are provided. Click the Ans button to view mine locations, click the Esc button to
-                leave test mode.
+                Validates the module-based reset algorithm's reliability through targeted test cases. Each scenario evaluates
+                the algorithm's ability to dynamically redistribute mines while preserving game state consistency and logical
+                constraints. The validation focuses on edge cases and complex configurations to ensure robust performance.
             </p>
         </div>
-        <div id="test-container" class="test-container">
+        <div id="test-container-b" class="test-container">
             <!-- test-options loaded in scrip_main.js -->
 
-            <div class="test-module">
+            <div class="test-module-b">
                 <h3>Test Type 1</h3>
                 <div id="test-options-1" class="test-option-list"></div>
             </div>
 
-            <div class="test-module">
+            <div class="test-module-b">
                 <h3>Test Type 2</h3>
                 <div id="test-options-2" class="test-option-list"></div>
             </div>
 
-            <div class="test-module">
+            <div class="test-module-b">
                 <h3>Test Type 3</h3>
                 <div id="test-options-3" class="test-option-list"></div>
             </div>
 
-            <div class="test-module">
+            <div class="test-module-b">
                 <h3>Test Type 4</h3>
                 <div id="test-options-4" class="test-option-list"></div>
             </div>
 
-            <div class="test-module">
+            <div class="test-module-b">
                 <h3>Test Type 5</h3>
                 <div id="test-options-5" class="test-option-list"></div>
             </div>
 
-            <div class="test-module">
+            <div class="test-module-b">
                 <h3>Controls</h3>
-                <div id="test-b-options-controls" class="test-option-list controls">
-                    <div id="ans-test-btn" class="test-option ctrl" onclick="toggle_mines_visibility()">Ans</div>
-                    <div id="esc-test-btn" class="test-option ctrl" onclick="exit_test()">Esc</div>
+                <div id="test-controls-b" class="test-ctrl-b">
+                    <div id="ans-test-btn-b" class="test-option ctrl-b" onclick="toggle_mines_visibility()">Ans</div>
+                    <div id="esc-test-btn-b" class="test-option ctrl-b" onclick="exit_test()">Esc</div>
                 </div>
             </div>
 

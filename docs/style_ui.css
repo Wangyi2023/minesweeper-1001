@@ -336,10 +336,22 @@ body.sidebar-collapsed .expand-button {
 
 
 /* Part 3 - Test */
-.main-test-container {
+.main-test-container-a {
     position: fixed;
-    top: 50%;
-    width: 600px;
+    top: 505px;
+    width: 720px;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    z-index: 10;
+    background: transparent;
+}
+.main-test-container-b {
+    position: fixed;
+    top: 400px;
+    width: 640px;
     display: flex;
     justify-content: center;
     flex-direction: column;
@@ -356,22 +368,33 @@ body.sidebar-collapsed .expand-button {
     padding: 0;
     margin-left: -4px;
 }
-.test-module {
+.test-module-a {
+    background: transparent;
+    width: 100%;
+}
+.test-module-b {
     background: transparent;
     width: 100px;
-    gap: 0;
-    padding: 0;
 }
 .test-option-list {
     display: grid;
     grid-template-columns: repeat(2, 40px);
     gap: 0;
     justify-content: left;
+    padding-left: 5px;
 }
-.test-option-list.controls {
+.test-ctrl-a {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+.test-ctrl-b {
+    display: grid;
     grid-template-columns: repeat(1, 40px);
-    padding-left: 10px;
-}
+    justify-content: left;
+    padding-left: 5px;
+ }
 
 .test-option {
     font-family: 'Tahoma', 'Microsoft Sans Serif', 'Arial', sans-serif;
@@ -392,8 +415,15 @@ body.sidebar-collapsed .expand-button {
     background: transparent;
     border: none;
 }
-.test-option.ctrl {
-    width: 60px;
+.test-option.ctrl-a {
+    width: auto;
+    padding: 0 30px;
+    white-space: nowrap;
+    color: rgba(200, 20, 20, 1);
+    font-size: 18px;
+}
+.test-option.ctrl-b {
+    width: 80px;
     color: rgba(200, 20, 20, 1);
     font-size: 18px;
 }
@@ -412,18 +442,18 @@ body.sidebar-collapsed .expand-button {
     bottom: 3px;
     left: 50%;
     transform: translateX(-50%);
-    width: 20%;
+    width: 12px;
     height: 4px;
     border-radius: 1px;
     background-color: rgba(0, 0, 0, 1);
 }
-.test-option.ctrl.selected::after {
+.test-option.ctrl-a.selected::after, .test-option.ctrl-b.selected::after {
     content: "";
     position: absolute;
     bottom: 3px;
     left: 50%;
     transform: translateX(-50%);
-    width: 30%;
+    width: 16px;
     height: 4px;
     border-radius: 1px;
     background-color: rgba(200, 20, 20, 1);

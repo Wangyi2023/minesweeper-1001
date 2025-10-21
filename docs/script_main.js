@@ -137,6 +137,16 @@ const NOTICE_CONFIG = {
         title: "Screenshot Completed.",
         content: "Screenshot saved to default folder",
         color: 'rgba(0, 220, 80, 1)'
+    },
+    progression_blocked: {
+        title: "Progression Blocked.",
+        content: "Progression blocked by algorithm divergence. Please update the SAT solver solution via the 'Analyse' button, or restart the game.",
+        color: 'rgba(255, 20, 53, 1)'
+    },
+    solutions_inconsistent: {
+        title: "Solution Inconsistency",
+        content: "Solutions of MDL- and SAT- Algorithms are inconsistent. Screenshot captured automatically.",
+        color: 'rgba(255, 20, 53, 1)'
     }
 };
 
@@ -145,7 +155,8 @@ const FONT_SIZE = 16;
 const ALGORITHM_LIMIT = 4800;
 const ANIMATION_LIMIT = 1200;
 const NOTICE_TIME_LIMIT = 800;
-const DELAY = 5;
+const DELAY = 2;
+const DELAY_LIMIT = 200;
 const TIMEOUT = 4500;
 
 let current_difficulty = 'high';
@@ -154,6 +165,7 @@ let current_test_id = null;
 let first_step = true;
 let game_over = false;
 let is_solving = false;
+let is_testing = false;
 
 let animation_timers = [];
 let start_time = null;
@@ -170,6 +182,7 @@ let cursor_x, cursor_y, cursor_path;
 let module_collection = [];
 let bitmap_size;
 let solutions;
+let solutions_sat;
 let solvable = false;
 
 
@@ -194,6 +207,13 @@ function start() {
         }
 
         setTimeout(() => {select_cell(7)}, 50);
+    } else if (current_test_id === 0) {
+        const params = get_difficulty_params();
+        X = params.X;
+        Y = params.Y;
+        N = params.N;
+        first_step = true;
+        init_board_data();
     } else {
         const params = get_difficulty_params(current_difficulty);
         X = params.X;
@@ -213,8 +233,10 @@ function start() {
     module_collection.length = 0;
     bitmap_size = Math.ceil(X * Y / 32) + 1;
     solutions = new Uint32Array(bitmap_size).fill(0);
+    solutions_sat = new Uint32Array(bitmap_size).fill(0);
     solvable = false;
     is_solving = false;
+    is_testing = false;
     game_over = false;
     counter_revealed = 0;
     counter_marked = 0;
@@ -300,8 +322,8 @@ function get_difficulty_params(difficulty) {
         case 'high':
             return { X: 16, Y: 30, N: 99 };
         case 'fullscreen':
-            const x = ((window.innerHeight - 100) / (CELL_SIZE + 2)) | 0;
-            const y = ((window.innerWidth - 20) / (CELL_SIZE + 2)) | 0;
+            const x = Math.min(((window.innerHeight - 100) / (CELL_SIZE + 2)) | 0, 100);
+            const y = Math.min(((window.innerWidth - 20) / (CELL_SIZE + 2)) | 0, 200);
             const n = ( x * y * 0.20625) | 0;
             return { X: x, Y: y, N: n };
         default:
@@ -329,6 +351,7 @@ function select_cell(i) {
 
     if (first_step) {
         init_mines(N, i);
+        update_mines_visibility();
         document.getElementById('status-info').textContent = 'In Progress';
         first_step = false;
         start_timer();
@@ -380,7 +403,7 @@ function reveal_linked_cells_with_delay(i, current_id) {
         setTimeout(() => {
             admin_reveal_cell(j, current_id);
         }, delay)
-        delay += DELAY;
+        delay = Math.min(delay + DELAY, DELAY_LIMIT);
     }
 }
 function admin_reveal_cell(i, current_id) {
@@ -398,6 +421,7 @@ function admin_reveal_cell(i, current_id) {
         return;
     }
     const target_element = CELL_ELEMENTS[i];
+    target_element.classList.remove('solution-mdl', 'solution-sat', 'solution-both');
     if (target_element.classList.contains('marked')) {
         target_element.classList.remove('marked');
         counter_marked--;
@@ -405,7 +429,7 @@ function admin_reveal_cell(i, current_id) {
     }
 
     DATA[i] &= ~Cv_;
-    update_cell_display(i);
+    update_cell_information_form_data(i);
     remove_cell_from_solutions(i);
     update_solvability_info();
     counter_revealed++;
@@ -1097,7 +1121,7 @@ function reset_mines(target_mine) {
         }
         if (selections_1.length + selections_2.length < current_added) {
             DATA.set(COPY);
-            update_all_cells_display();
+            update_all_cells_information_from_data();
 
             const text_31 = 'reset failed';
             test_result_text += text_31 + '<br>';
@@ -1164,7 +1188,7 @@ function reset_mines(target_mine) {
         }
         if (selections_1.length + selections_2.length < current_removed) {
             DATA.set(COPY);
-            update_all_cells_display();
+            update_all_cells_information_from_data();
 
             const text_33 = 'reset failed';
             test_result_text += text_33 + '<br>';
@@ -1256,7 +1280,7 @@ function recursive_add_mines(COPY, linked_number_cells, linked_covered_cells, i 
 }
 function remove_mine(index) {
     DATA[index] &= ~Mi_;
-    update_cell_display(index);
+    update_cell_information_form_data(index);
     const idx = (index / Y) | 0;
     const idy = index - idx * Y;
     for (let n = 0; n < 8; n++) {
@@ -1265,13 +1289,13 @@ function remove_mine(index) {
         if (x >= 0 && x < X && y >= 0 && y < Y) {
             const i = x * Y + y;
             DATA[i]--;
-            update_cell_display(i);
+            update_cell_information_form_data(i);
         }
     }
 }
 function set_mine(index) {
     DATA[index] |= Mi_;
-    update_cell_display(index);
+    update_cell_information_form_data(index);
     const idx = (index / Y) | 0;
     const idy = index - idx * Y;
     for (let n = 0; n < 8; n++) {
@@ -1280,7 +1304,7 @@ function set_mine(index) {
         if (x >= 0 && x < X && y >= 0 && y < Y) {
             const i = x * Y + y;
             DATA[i]++;
-            update_cell_display(i);
+            update_cell_information_form_data(i);
         }
     }
 }
@@ -1348,53 +1372,169 @@ function update_mines_visibility() {
     }
 }
 // Todo 1.7 - Test Mode
-function select_test(target_test_id) {
-    current_test_id = target_test_id;
-    start();
-    update_reset_test_selection();
-}
-function select_previous_test() {
-    current_test_id--;
-    if (current_test_id === 0) {
-        current_test_id = TEST_SIZE;
-    }
-    start();
-    update_reset_test_selection();
-}
-function select_next_test() {
-    current_test_id++;
-    if (current_test_id > TEST_SIZE) {
-        current_test_id = 1;
-    }
-    start();
-    update_reset_test_selection();
-}
 function test() {
     cursor_enabled = false;
 
     set_background();
     send_notice('test_start', false);
-    reset_test();
-}
-function reset_test() {
-    current_test_id = 1;
-    mines_visible = false;
-
-    update_ans_button_selection();
-    generate_reset_test_ui();
-    update_reset_test_selection();
-    update_sidebar_buttons();
-    start();
+    solving_test();
 }
 function exit_test() {
     current_test_id = null;
     mines_visible = false;
 
     update_ans_button_selection();
+    close_solving_test_ui();
     close_reset_test_ui();
     update_sidebar_buttons();
     send_notice('test_end', false);
     start();
+}
+// Todo 1.7 - Test Mode - Solving Test
+function solving_test() {
+    current_test_id = 0;
+    mines_visible = false;
+
+    update_ans_button_selection();
+    close_reset_test_ui();
+    generate_solving_test_ui();
+    update_sidebar_buttons();
+    start();
+}
+async function calculate_and_visualize_solutions() {
+    if (game_over) return;
+    for (let i = 0; i < X * Y; i++) {
+        CELL_ELEMENTS[i].classList.remove('solution-sat', 'solution-mdl');
+    }
+
+    init_module_collection();
+    calculate_partially_module_collection(false);
+    calculate_complete_module_collection();
+
+    calculate_solutions_of_sat_solver();
+
+    let solutions_consistent= true;
+    for (let i = 1; i < bitmap_size; i++) {
+        const bits = solutions[i];
+        const bits_sat = solutions_sat[i];
+
+        if (bits === 0 && bits_sat === 0) {
+            continue;
+        } else if (bits !== bits_sat) {
+            solutions_consistent = false;
+        }
+
+        for (let bit_position = 0; bit_position < 32; bit_position++) {
+            const index = (i - 1) * 32 + bit_position;
+            const cell_element = CELL_ELEMENTS[index];
+
+            const is_solution_in_mdl = bits & (1 << bit_position);
+            const is_solution_in_sat = bits_sat & (1 << bit_position);
+
+            if (is_solution_in_mdl && is_solution_in_sat) {
+                cell_element.classList.add('solution-both');
+            } else if (is_solution_in_mdl) {
+                cell_element.classList.add('solution-mdl');
+            } else if (is_solution_in_sat) {
+                cell_element.classList.add('solution-sat');
+            }
+        }
+    }
+
+    if (!solutions_consistent) {
+        send_notice('solutions_inconsistent');
+        await screenshot_data();
+    }
+}
+async function continue_solving_test() {
+    if (game_over) return;
+    for (let i = 1; i < bitmap_size; i++) {
+        const bits = solutions[i];
+        const bits_sat = solutions_sat[i];
+
+        if (bits !== bits_sat) {
+            send_notice('progression_blocked');
+            return false;
+        }
+    }
+
+    if (first_step || !solvable) {
+        const selections = [];
+        for (let i = 0; i < X * Y; i++) {
+            if (!(DATA[i] & Mi_) && (DATA[i] & Cv_)) {
+                selections.push(i);
+            }
+        }
+        const ri = (Math.random() * selections.length) | 0;
+        select_cell(selections[ri]);
+    } else {
+        for (let i = 1; i < bitmap_size; i++) {
+            let bits = solutions[i];
+            if (bits === 0) continue;
+            for (let bit_position = 0; bit_position < 32; bit_position++) {
+                if (bits & (1 << bit_position)) {
+                    const index = (i - 1) * 32 + bit_position;
+                    select_cell(index);
+                }
+            }
+        }
+    }
+    update_solvability_info();
+
+    await new Promise(resolve => setTimeout(resolve, 50 + DELAY_LIMIT));
+    await calculate_and_visualize_solutions();
+
+    return true;
+}
+async function complete_full_test() {
+    if (game_over) {
+        return;
+    }
+    if (is_testing) {
+        is_testing = false;
+        return;
+    }
+    document.getElementById('complete-test-btn').classList.add('selected');
+    is_testing = true;
+    let solutions_consistent = true;
+    while (!game_over && is_testing && solutions_consistent) {
+        solutions_consistent = await continue_solving_test();
+        await new Promise(resolve => setTimeout(resolve, 800));
+    }
+    document.getElementById('complete-test-btn').classList.remove('selected');
+    is_testing = false;
+}
+// Todo 1.7 - Test Mode - Reset Test
+function reset_test() {
+    current_test_id = 1;
+    mines_visible = false;
+
+    update_ans_button_selection();
+    close_solving_test_ui();
+    generate_reset_test_ui();
+    update_reset_test_selection();
+    update_sidebar_buttons();
+    start();
+}
+function select_test(target_test_id) {
+    current_test_id = target_test_id;
+    start();
+    update_reset_test_selection();
+    update_ans_button_selection();
+}
+function select_previous_reset_test() {
+    if (current_test_id === 0) return;
+    const previous_test_id = current_test_id > 1 ? current_test_id - 1 : TEST_SIZE;
+    select_test(previous_test_id);
+}
+function select_next_reset_test() {
+    if (current_test_id === 0) return;
+    const next_test_id = current_test_id < TEST_SIZE ? current_test_id + 1 : 1;
+    select_test(next_test_id);
+}
+// Todo 1.9 - Algorithm - SAT_Solver
+function calculate_solutions_of_sat_solver() {
+    solutions_sat = new Uint32Array(solutions);
 }
 
 
@@ -1585,10 +1725,14 @@ function update_sidebar_buttons() {
         'hint-btn': current_test_id === null,
         'solve-btn': current_test_id === null,
         'solve-all-btn': current_test_id === null,
+        'analyse-test-btn': current_test_id === 0,
+        'continue-test-btn': current_test_id === 0,
+        'complete-test-btn': current_test_id === 0,
         'screenshot-btn': true,
         'guide-btn': current_test_id === null,
         'answer-btn': current_test_id !== null,
-        'test-reset-btn': false,
+        'solving-test-btn': current_test_id > 0,
+        'reset-test-btn': current_test_id === 0,
         'exit-btn': current_test_id !== null
     }
     for (const btn_id of Object.keys(buttons_visibility)) {
@@ -1613,12 +1757,10 @@ function set_background(filename = 'default.jpg', title_image = 'dark') {
     close_background_menu();
 }
 // Todo 2.3 - Update Game Information
-function update_cell_display(i) {
+function update_cell_information_form_data(i) {
     const target_element = CELL_ELEMENTS[i];
     const target_cell = DATA[i];
-    if (target_cell & Cv_) {
-        return;
-    }
+    if (target_cell & Cv_) return;
 
     if (target_cell & Mi_) {
         target_element.textContent = ' ';
@@ -1631,9 +1773,9 @@ function update_cell_display(i) {
         target_element.classList.add('revealed');
     }
 }
-function update_all_cells_display() {
+function update_all_cells_information_from_data() {
     for (let i = 0; i < X * Y; i++) {
-        update_cell_display(i);
+        update_cell_information_form_data(i);
     }
 }
 function start_timer() {
@@ -1674,7 +1816,7 @@ function update_cursor() {
     }
 }
 // Todo 2.4 - Message / Shortcuts
-function send_notice(type, locked = true) {
+function send_notice(type = 'default', locked = true) {
     const now = Date.now();
     if (locked) {
         if (locked && now - last_notice_time < NOTICE_TIME_LIMIT) {
@@ -1683,7 +1825,7 @@ function send_notice(type, locked = true) {
         last_notice_time = now;
     }
 
-    const { title, content, color } = NOTICE_CONFIG[type] || NOTICE_CONFIG.default;
+    const { title, content, color } = NOTICE_CONFIG[type];
 
     const container = document.getElementById('notice-container');
     const notice = document.createElement('div');
@@ -1768,7 +1910,7 @@ function handle_keydown(event) {
     if (current_test_id !== null) {
         switch (key) {
             case 'r':
-                select_test(current_test_id);
+                start();
                 return;
             case 'escape':
                 exit_test();
@@ -1778,11 +1920,11 @@ function handle_keydown(event) {
                 break;
             case 'arrowright':
             case 'arrowdown':
-                select_next_test();
+                select_next_reset_test();
                 break;
             case 'arrowleft':
             case 'arrowup':
-                select_previous_test();
+                select_previous_reset_test();
                 break;
         }
         return;
@@ -2033,8 +2175,14 @@ function format_candidate(x, y) {
     }
 }
 // Todo 2.8 - Test Mode UI
+function generate_solving_test_ui() {
+    document.getElementById('main-test-container-a').style.display = 'flex';
+}
+function close_solving_test_ui() {
+    document.getElementById('main-test-container-a').style.display = 'none';
+}
 function generate_reset_test_ui() {
-    document.getElementById('main-test-container').style.display = 'flex';
+    document.getElementById('main-test-container-b').style.display = 'flex';
 
     for (let i = 0; i < 5; i++) {
         const test_options_list = document.getElementById(`test-options-${i + 1}`);
@@ -2070,7 +2218,7 @@ function generate_reset_test_ui() {
     update_reset_test_selection();
 }
 function close_reset_test_ui() {
-    document.getElementById('main-test-container').style.display = 'none';
+    document.getElementById('main-test-container-b').style.display = 'none';
 }
 function update_reset_test_selection() {
     document.querySelectorAll('.test-option:not(.ctrl)').forEach(option => {
@@ -2083,15 +2231,18 @@ function update_reset_test_selection() {
     });
 }
 function update_ans_button_selection() {
-    const ans_test_btn = document.getElementById('ans-test-btn');
     const answer_btn = document.getElementById('answer-btn');
+    const ans_test_btn_a = document.getElementById('ans-test-btn-a');
+    const ans_test_btn_b = document.getElementById('ans-test-btn-b');
 
     if (mines_visible) {
-        ans_test_btn.classList.add('selected');
         answer_btn.classList.add('selected');
+        ans_test_btn_a.classList.add('selected');
+        ans_test_btn_b.classList.add('selected');
     } else {
-        ans_test_btn.classList.remove('selected');
         answer_btn.classList.remove('selected');
+        ans_test_btn_a.classList.remove('selected');
+        ans_test_btn_b.classList.remove('selected');
     }
 }
 
