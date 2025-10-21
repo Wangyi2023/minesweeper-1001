@@ -142,11 +142,6 @@ const NOTICE_CONFIG = {
         title: "Progression Blocked.",
         content: "Progression blocked by algorithm divergence. Please update the SAT solver solution via the 'Analyse' button, or restart the game.",
         color: 'rgba(255, 20, 53, 1)'
-    },
-    solutions_inconsistent: {
-        title: "Solution Inconsistency",
-        content: "Solutions of MDL- and SAT- Algorithms are inconsistent. Screenshot captured automatically.",
-        color: 'rgba(255, 20, 53, 1)'
     }
 };
 
@@ -1442,7 +1437,9 @@ async function calculate_and_visualize_solutions() {
     }
 
     if (!solutions_consistent) {
-        send_notice('solutions_inconsistent');
+        send_test_result_notice(
+            'Solutions of MDL- and SAT- Algorithms are inconsistent. Screenshot captured automatically.<br>'
+        );
         await screenshot_data();
     }
 }
