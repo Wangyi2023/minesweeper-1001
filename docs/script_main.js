@@ -2126,6 +2126,15 @@ async function screenshot_data(candidate = true) {
             } else if (cell_element.classList.contains('revealed')) {
                 ctx.fillStyle = 'rgba(128, 128, 128, 1)';
                 ctx.strokeStyle = 'rgba(166, 166, 166, 1)';
+            } else if (cell_element.classList.contains('solution-mdl')) {
+                ctx.fillStyle = 'rgba(255, 220, 120, 1)';
+                ctx.strokeStyle = 'rgba(255, 231, 161, 1)';
+            } else if (cell_element.classList.contains('solution-sat')) {
+                ctx.fillStyle = 'rgba(240, 160, 80, 1)';
+                ctx.strokeStyle = 'rgba(245, 189, 133, 1)';
+            } else if (cell_element.classList.contains('solution-both')) {
+                ctx.fillStyle = 'rgba(234, 88, 12, 1)';
+                ctx.strokeStyle = 'rgba(240, 138, 85, 1)';
             } else {
                 ctx.fillStyle = 'rgba(25, 25, 25, 1)';
                 ctx.strokeStyle = 'rgba(94, 94, 94, 1)';
