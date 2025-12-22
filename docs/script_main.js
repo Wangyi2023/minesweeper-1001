@@ -4,8 +4,8 @@
 
 /*
 X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信息的高密度容器，数据类型为 Uint8Array。
-具体存储方式为，将存储单个方格（Cell）的二维矩阵扁平化为一维数组，用 8 位存储单个格子的全部信息，具体存储方式在下面表格中。
-这种存储 DATA 的方式是优化到极限的，在高频访问时对缓存极其友好，并且在更改内部数据的时候全部使用位运算，速度极快。
+存储矩阵信息的方式为，将存储单个方格（Cell）的二维矩阵扁平化为一维数组，用 8 位存储单个格子的全部信息，具体信息分布在下面表格中。
+这一存储 DATA 的方式是优化到极限的，在高频访问时对缓存极其友好，并且在更改和读取内部数据的时候全部使用位运算，速度极快。
 而 CELL_ELEMENTS 只用于存储单个方格对应的页面上的元素（div）的索引，只用于渲染游戏界面。
 它无法被 Uint8Array 压缩，只能用普通数组存储。
 它的作用是在局部更新游戏界面时快速寻找到需要渲染的方格，而不必频繁调用非常缓慢的 querySelector。
@@ -14,32 +14,32 @@ let X, Y, N, DATA, CELL_ELEMENTS;
 /*
 下面是用 8 位存储单个方格的全部信息的方式
 ---------------------------------------------------------------------
-| internal-mark   | visited   | covered   | mine   | number (0-8)   |
-| bit 7           | bit 6     | bit 5     | bit 4  | bit 0-3        |
+| internal-mark-solution   | internal-mark-mine   | covered   | mine   | number (0-8)   |
+| bit 7                    | bit 6                | bit 5     | bit 4  | bit 0-3        |
 ---------------------------------------------------------------------
 由于 number 这一项信息的数据类型为 int，我选择把它放到最低位，这样只需掩码位运算就可获取到 int 以及更改它的值。如果放在高位
 需要额外的左移和右移运算。在游戏中它的值为 0-8，因此只需要 4 bit 的位置即可存储这项信息。
 其它元素均为 boolean，随意放置不影响性能。
-其中 internal-mark 是内部标记，用于内部算法计算。与 mark 外部标记不同，外部标记由玩家操控，用于辅助玩家完成游戏，因此外部标记
-不需要存储到 DATA 中，而是以 'marked' 属性存储在 CELL_ELEMENTS 对应元素的 ClassList 中，对其的更改不会影响主要游戏数据。
-属性 visited 的唯一作用是辅助延迟打开。
+其中 internal-mark-solution 和 internal-mark-mine 是内部标记，用于内部算法计算。与 mark 外部标记不同，外部标记由玩家操控，
+用于辅助玩家完成游戏，因此外部标记不需要存储到 DATA 中，而是以 'marked' 属性存储在 CELL_ELEMENTS 对应元素的 ClassList 中，
+对其的更改不会影响主要游戏数据。
 通过与掩码位运算可提取和修改它们的各项信息，如下：
 DATA[x * Y + y] & NUMBER_MASK     <-> number on the cell (x, y)
-DATA[x * Y + y] & MINE_MAS        <-> cell (x, y) is mine
+DATA[x * Y + y] & MINE_MASK       <-> cell (x, y) is mine
 DATA[x * Y + y] & COVERED_MASK    <-> cell (x, y) is covered
  */
 const Nr_ = 0b00001111;
 const Mi_ = 0b00010000;
 const Cv_ = 0b00100000;
-const Vs_ = 0b01000000;
-const Mk_ = 0b10000000;
+const Im_ = 0b01000000;
+const Is_ = 0b10000000;
 /*
 游戏 ID 的作用是在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断。
  */
 let ID = 0;
 /*
-DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标。为满足特殊需求比如有时只需要分析上下左右的方向，我将上下左右的坐标
-放置于前 4 位，可快速截断。整体遍历顺序为顺时针方向，这仅仅时为了优化延迟展开的效果。
+DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标。为满足特殊需求比如有时只需要分析上下左右的方向，我已将上下左右的坐标
+放置于前 4 位，可快速截断。整体遍历顺序为顺时针方向，这仅仅是为了优化延迟展开的效果。
  */
 const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
 const DY = [0, 1, 0, -1, 1, 1, -1, -1];
@@ -52,20 +52,22 @@ const TEST_CONFIG = {
     2  : { Type: 1, Mines: [[0, 0], [0, 1], [2, 0], [2, 1]] },
     3  : { Type: 1, Mines: [[0, 1], [1, 0], [2, 1], [3, 0], [3, 1]] },
     4  : { Type: 2, Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [5, 1]] },
-    5  : { Type: 2, Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [6, 0]] },
+    5  : { Type: 2, Mines: [[0, 0], [2, 0], [3, 0], [5, 0], [6, 0], [7, 2], [7, 3], [7, 5], [7, 6]] },
     6  : { Type: 2, Mines: [[0, 0], [1, 1], [2, 2]] },
     7  : { Type: 2, Mines: [[0, 1], [1, 0], [2, 2]] },
-    8  : { Type: 3, Mines: [[0, 1], [1, 0], [2, 2], [5, 5], [6, 7], [7, 6]] },
-    9  : { Type: 3, Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
-    10 : { Type: 3, Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
-    11 : { Type: 4, Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    12 : { Type: 4, Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    13 : { Type: 5, Mines: [[0, 0], [0, 2], [2, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
-    14 : { Type: 5, Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    8  : { Type: 3, Mines: [[1, 2], [2, 0], [3, 1], [3, 2], [4, 0], [5, 2]] },
+    9  : { Type: 3, Mines: [[1, 2], [2, 1], [3, 0], [3, 2], [4, 1], [5, 2]] },
+    10 : { Type: 3, Mines: [[0, 1], [1, 0], [2, 2], [5, 5], [6, 7], [7, 6]] },
+    11 : { Type: 3, Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6], [7, 7]] },
+    12 : { Type: 3, Mines: [[0, 0], [0, 1], [1, 0], [2, 2], [5, 5], [6, 6]] },
+    13 : { Type: 4, Mines: [[0, 0], [0, 2], [1, 1], [2, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    14 : { Type: 4, Mines: [[0, 1], [0, 2], [1, 1], [3, 1], [4, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    15 : { Type: 5, Mines: [[0, 0], [0, 2], [2, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
+    16 : { Type: 5, Mines: [[0, 1], [0, 2], [3, 1], [4, 2], [5, 0], [5, 1], [5, 2]] },
 }
 const TEST_SIZE = Object.keys(TEST_CONFIG).length;
 /*
-这里是消息，普通消息的内容和进度条的颜色在此确认。
+这里是消息列表，普通消息的内容和进度条的颜色在此编辑。
  */
 const NOTICE_CONFIG = {
     congrats: {
@@ -355,20 +357,17 @@ function select_cell(i) {
         reset_mines(i);
     }
 
-    admin_reveal_cell(i, ID);
-    if (!(DATA[i] & Nr_) && !(DATA[i] & Mi_)) {
-        reveal_linked_cells_with_delay(i, ID);
-    }
+    reveal_cell(i, ID);
 }
-function reveal_linked_cells_with_delay(i, current_id) {
-    /*
-    这个函数的作用是，对于点击到数字为 0 的坐标，自动打开其相邻的所有坐标，为实现动画效果，这里给需要打开的坐标加上了延时。
-    而为了实现扩散效果，这里使用广度优先搜索 BFS 将需要打开的坐标加入优先队列。
-    为避免 queue 中重复元素过多，去重的方式为，将添加过的坐标直接在 DATA 中使用 visited 标签标记。这恰好将 DATA 中每个坐标
-    拥有的 8 位存储空间利用到极致。
-     */
+function reveal_cell(i, current_id) {
+    if ((DATA[i] & Nr_) > 0) {
+        admin_reveal_cell(i, current_id);
+        return;
+    }
+
     const queue = [i];
-    DATA[i] |= Vs_;
+    const visited = new Set();
+    visited.add(i);
 
     let index = 0;
     while (index < queue.length) {
@@ -385,9 +384,9 @@ function reveal_linked_cells_with_delay(i, current_id) {
             const y = jy + DY[n];
             if (x >= 0 && x < X && y >= 0 && y < Y) {
                 const k = x * Y + y;
-                if (!(DATA[k] & Vs_)) {
+                if (!visited.has(k)) {
                     queue.push(k);
-                    DATA[k] |= Vs_;
+                    visited.add(k);
                 }
             }
         }
@@ -395,13 +394,11 @@ function reveal_linked_cells_with_delay(i, current_id) {
 
     let delay = 0;
     for (const j of queue) {
-        setTimeout(() => {
-            admin_reveal_cell(j, current_id);
-        }, delay)
+        admin_reveal_cell(j, current_id, delay);
         delay = Math.min(delay + DELAY, DELAY_LIMIT);
     }
 }
-function admin_reveal_cell(i, current_id) {
+function admin_reveal_cell(i, current_id, delay_animation = 0) {
     /*
     注意！所有 reveal cell 的行为必须通过此 admin_reveal_cell 函数，因为所有游戏状态的检测和修改都在此函数内，此处为分界线。
     算法也统一在此处更新，因为每次棋盘内容有变动都需要及时更新可解性（solvability）信息。
@@ -415,21 +412,19 @@ function admin_reveal_cell(i, current_id) {
     if (!(DATA[i] & Cv_)) {
         return;
     }
-    const target_element = CELL_ELEMENTS[i];
-    target_element.classList.remove('solution-mdl', 'solution-sat', 'solution-both');
-    if (target_element.classList.contains('marked')) {
-        target_element.classList.remove('marked');
-        counter_marked--;
-        update_marks_info();
-    }
 
     DATA[i] &= ~Cv_;
-    update_cell_information_form_data(i);
+    counter_revealed++;
     remove_cell_from_solutions(i);
     update_solvability_info();
-    counter_revealed++;
 
-    if (!game_over && counter_revealed === X * Y - N) {
+    setTimeout(() => {
+        play_reveal_animation(i, current_id);
+    }, delay_animation)
+
+    if (DATA[i] & Mi_) {
+        terminate(false);
+    } else if (!game_over && counter_revealed === X * Y - N) {
         terminate(true);
     }
 }
@@ -446,6 +441,17 @@ function mark_cell(i) {
         counter_marked++;
     }
     update_marks_info();
+}
+function terminate(completed) {
+    game_over = true;
+    clearInterval(timer_interval);
+    if (completed) {
+        document.getElementById('status-info').textContent = 'Completed';
+        send_notice('congrats');
+    } else {
+        document.getElementById('status-info').textContent = 'Failed';
+        send_notice('failed');
+    }
 }
 // Todo 1.3 - Algorithm Part 2
 function send_hint() {
@@ -504,7 +510,7 @@ function auto_mark() {
     calculate_partially_module_collection(false);
     calculate_complete_module_collection();
     for (let i = 0; i < X * Y; i++) {
-        if ((DATA[i] & Mk_) && (DATA[i] & Cv_)) {
+        if ((DATA[i] & Im_) && (DATA[i] & Cv_)) {
             const target_element = CELL_ELEMENTS[i];
             if (!target_element.classList.contains('marked')) {
                 target_element.classList.add('marked');
@@ -622,7 +628,7 @@ function calculate_complete_module_collection() {
         if (!(DATA[i] & Cv_)) {
             continue;
         }
-        if (DATA[i] & Mk_) {
+        if (DATA[i] & Im_) {
             inverse_module[0]--;
             continue;
         }
@@ -703,7 +709,7 @@ function init_module_collection() {
                 if (!(DATA[i] & Cv_)) {
                     continue;
                 }
-                if (DATA[i] & Mk_) {
+                if (DATA[i] & Im_) {
                     module[0]--;
                     continue;
                 }
@@ -752,7 +758,7 @@ function internal_mark_cells_in_module(module) {
         for (let bit_position = 0; bit_position < 32; bit_position++) {
             if (bits & (1 << bit_position)) {
                 const index = (array_position - 1) * 32 + bit_position;
-                DATA[index] |= Mk_;
+                DATA[index] |= Im_;
             }
         }
     }
@@ -956,7 +962,7 @@ function reset_mines(target_mine) {
         }
     }
 
-    if (DATA[target_mine] & Mk_) {
+    if (DATA[target_mine] & Im_) {
         const text_02 = 'Clicked a cell that is definitely a mine'
         test_result_text += text_02 + '<br>';
         console.warn(text_02);
@@ -1018,7 +1024,7 @@ function reset_mines(target_mine) {
     }
 
     for (let index = 0; index < X * Y; index++) {
-        if ((DATA[index] & Mk_) && !(DATA[index] & Mi_)) {
+        if ((DATA[index] & Im_) && !(DATA[index] & Mi_)) {
             set_mine(index);
             const ix = (index / Y) | 0;
             const iy = index - ix * Y
@@ -1305,7 +1311,7 @@ function set_mine(index) {
 }
 function clear_all_internal_mark() {
     for (let i = 0; i < X * Y; i++) {
-        DATA[i] &= ~Mk_;
+        DATA[i] &= ~Im_;
     }
 }
 function count_number_of_mines() {
@@ -1496,7 +1502,9 @@ async function complete_full_test() {
     let solutions_consistent = true;
     while (!game_over && is_testing && solutions_consistent) {
         solutions_consistent = await continue_solving_test();
-        await new Promise(resolve => setTimeout(resolve, 800));
+        if (!game_over && is_testing && solutions_consistent) {
+            await new Promise(resolve => setTimeout(resolve, 800));
+        }
     }
     document.getElementById('complete-test-btn').classList.remove('selected');
     is_testing = false;
@@ -1762,8 +1770,6 @@ function update_cell_information_form_data(i) {
     if (target_cell & Mi_) {
         target_element.textContent = ' ';
         target_element.classList.add('mine');
-
-        terminate(false);
     } else {
         const number = (target_cell & Nr_);
         target_element.textContent = number > 0 ? number.toString() : ' ';
@@ -1779,16 +1785,18 @@ function start_timer() {
     start_time = Date.now();
     timer_interval = setInterval(update_time_info, 100);
 }
-function terminate(completed) {
-    game_over = true;
-    clearInterval(timer_interval);
-    if (completed) {
-        document.getElementById('status-info').textContent = 'Completed';
-        send_notice('congrats');
-    } else {
-        document.getElementById('status-info').textContent = 'Failed';
-        send_notice('failed');
+function play_reveal_animation(i, current_id) {
+    if (current_id !== ID) {
+        return;
     }
+    const target_element = CELL_ELEMENTS[i];
+    target_element.classList.remove('solution-mdl', 'solution-sat', 'solution-both');
+    if (target_element.classList.contains('marked')) {
+        target_element.classList.remove('marked');
+        counter_marked--;
+        update_marks_info();
+    }
+    update_cell_information_form_data(i);
 }
 function update_time_info() {
     const elapsed = (Date.now() - start_time) / 1000;
