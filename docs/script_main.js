@@ -1,6 +1,4 @@
-// script_main.js - 28.08.2025
-
-// < Part 0 - Define Global-Variables >
+// < PART 0 - DEFINE GLOBAL-VARIABLES >
 
 /*
 X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信息的高密度容器，数据类型为 Uint8Array。
@@ -34,7 +32,7 @@ const Cv_ = 0b00100000;
 const Im_ = 0b01000000;
 const Is_ = 0b10000000;
 /*
-游戏 ID 的作用是在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断。
+游戏 ID 的作用是：在一些延迟操作中，若操作未结束时玩家强行重设棋盘，尚未完成的延时操作会在重设后由于 ID 的改变被迫中断。
  */
 let ID = 0;
 /*
@@ -142,27 +140,32 @@ const NOTICE_CONFIG = {
     },
     progression_blocked: {
         title: "Progression Blocked.",
-        content: "Progression blocked by algorithm divergence. Please update the SAT solver solution via the 'Analyse' button, or restart the game.",
+        content: "Progression blocked by algorithm divergence. Please update the verifier solution via the 'Analyse' button, or restart the game.",
         color: 'rgba(255, 20, 53, 1)'
     }
 };
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
-const ALGORITHM_LIMIT = 4800;
+const ALGORITHM_LIMIT = 16000;
 const ANIMATION_LIMIT = 1200;
 const NOTICE_TIME_LIMIT = 800;
-const DELAY = 2;
-const DELAY_LIMIT = 200;
-const TIMEOUT = 4500;
+const REVEAL_DELAY = 4;
+const REVEAL_DELAY_LIMIT = 200;
+const AUTO_SOLVE_INTERVAL = 100;
+const AUTO_SOLVING_TEST_INTERVAL = 800;
+const NOTICE_DISPLAY_TIME = 4500;
+const RESET_RECURSION_LIMIT = 12;
 
 let current_difficulty = 'high';
 let current_test_id = null;
 
-let first_step = true;
+let first_click = true;
+let mines_inited = true;
 let game_over = false;
 let is_solving = false;
 let is_testing = false;
+let solvable = false;
 
 let animation_timers = [];
 let start_time = null;
@@ -173,20 +176,22 @@ let algorithm_enabled = true;
 let cursor_enabled = false;
 let mines_visible = false;
 
-let counter_revealed, counter_marked;
-let cursor_x, cursor_y, cursor_path;
-
-let module_collection = [];
+let module_collection;
 let bitmap_size;
 let solutions;
-let solutions_sat;
-let solvable = false;
+let solutions_verifier;
+
+let total_module_calculation_time;
+let total_module_calculation_calls;
+
+let counter_covered, counter_marked;
+let cursor_x, cursor_y, cursor_path;
 
 
 
-// < Part 1 - Game Logic >
+// < PART 1 - CORE GAME MECHANICS >
 
-// Todo 1.1 - Init
+// Todo 1.1 - Game Initialization & Setup
 function start() {
     ID++;
     clear_all_animation_timers();
@@ -196,27 +201,26 @@ function start() {
         X = 8;
         Y = 8;
         N = params.Mines.length;
-        first_step = false;
+        mines_inited = true;
         init_board_data();
 
         for (const [x, y] of params.Mines) {
             set_mine(x * Y + y);
         }
-
         setTimeout(() => {select_cell(7)}, 50);
     } else if (current_test_id === 0) {
         const params = get_difficulty_params();
         X = params.X;
         Y = params.Y;
         N = params.N;
-        first_step = true;
+        mines_inited = false;
         init_board_data();
     } else {
         const params = get_difficulty_params(current_difficulty);
         X = params.X;
         Y = params.Y;
         N = params.N;
-        first_step = true;
+        mines_inited = false;
         init_board_data();
     }
 
@@ -227,16 +231,18 @@ function start() {
         send_notice("algorithm_off");
     }
 
-    module_collection.length = 0;
-    bitmap_size = Math.ceil(X * Y / 32) + 1;
-    solutions = new Uint32Array(bitmap_size).fill(0);
-    solutions_sat = new Uint32Array(bitmap_size).fill(0);
-    solvable = false;
+    first_click = true;
+    game_over = false;
     is_solving = false;
     is_testing = false;
-    game_over = false;
-    counter_revealed = 0;
+    solvable = false;
+    counter_covered = X * Y;
     counter_marked = 0;
+
+    bitmap_size = Math.ceil(X * Y / 32) + 1;
+    solutions = new Uint32Array(bitmap_size).fill(0);
+    solutions_verifier = new Uint32Array(bitmap_size).fill(0);
+    init_module_collection();
 
     cursor_x = (X / 3) | 0;
     cursor_y = (Y / 3) | 0;
@@ -327,7 +333,46 @@ function get_difficulty_params(difficulty) {
             return { X: 16, Y: 30, N: 99 };
     }
 }
-// Todo 1.2 - Edit Main Field
+function remove_mine(index) {
+    DATA[index] &= ~Mi_;
+    update_cell_information_from_data(index);
+    const idx = (index / Y) | 0;
+    const idy = index - idx * Y;
+    for (let n = 0; n < 8; n++) {
+        const x = idx + DX[n];
+        const y = idy + DY[n];
+        if (x >= 0 && x < X && y >= 0 && y < Y) {
+            const i = x * Y + y;
+            DATA[i]--;
+            update_cell_information_from_data(i);
+        }
+    }
+}
+function set_mine(index) {
+    DATA[index] |= Mi_;
+    update_cell_information_from_data(index);
+    const idx = (index / Y) | 0;
+    const idy = index - idx * Y;
+    for (let n = 0; n < 8; n++) {
+        const x = idx + DX[n];
+        const y = idy + DY[n];
+        if (x >= 0 && x < X && y >= 0 && y < Y) {
+            const i = x * Y + y;
+            DATA[i]++;
+            update_cell_information_from_data(i);
+        }
+    }
+}
+function count_current_mines() {
+    let counter = 0;
+    for (let i = 0; i < X * Y; i++) {
+        if (DATA[i] & Mi_) {
+            counter++;
+        }
+    }
+    return counter;
+}
+// Todo 1.2 - Game State Transition Management
 function select_cell(i) {
     /*
     这是玩家层面的选择方格函数，它会对特殊情况进行特定的处理，再调用规范的 reveal_cell 函数进行打开格子。
@@ -346,34 +391,37 @@ function select_cell(i) {
         return;
     }
 
-    if (first_step) {
+    if (!mines_inited) {
         init_mines(N, i);
         update_mines_visibility();
-        document.getElementById('status-info').textContent = 'In Progress';
-        first_step = false;
+        mines_inited = true;
+    }
+    if (first_click) {
         start_timer();
+        document.getElementById('status-info').textContent = 'In Progress';
+        first_click = false;
     }
     if (!solvable && (DATA[i] & Mi_)) {
         reset_mines(i);
     }
 
-    reveal_cell(i, ID);
+    const reveal_sequence = calculate_reveal_sequence([i]);
+    admin_reveal_cells(reveal_sequence, ID);
 }
-function reveal_cell(i, current_id) {
-    if ((DATA[i] & Nr_) > 0) {
-        admin_reveal_cell(i, current_id);
-        return;
+function calculate_reveal_sequence(input_queue) {
+    const visited = new Set();
+    for (const i of input_queue) {
+        visited.add(i);
     }
 
-    const queue = [i];
-    const visited = new Set();
-    visited.add(i);
-
     let index = 0;
-    while (index < queue.length) {
-        const j = queue[index];
+    while (index < input_queue.length) {
+        const j = input_queue[index];
         index++;
 
+        if (DATA[j] & Mi_) {
+            continue;
+        }
         if (DATA[j] & Nr_) {
             continue;
         }
@@ -385,20 +433,15 @@ function reveal_cell(i, current_id) {
             if (x >= 0 && x < X && y >= 0 && y < Y) {
                 const k = x * Y + y;
                 if (!visited.has(k)) {
-                    queue.push(k);
+                    input_queue.push(k);
                     visited.add(k);
                 }
             }
         }
     }
-
-    let delay = 0;
-    for (const j of queue) {
-        admin_reveal_cell(j, current_id, delay);
-        delay = Math.min(delay + DELAY, DELAY_LIMIT);
-    }
+    return input_queue;
 }
-function admin_reveal_cell(i, current_id, delay_animation = 0) {
+function admin_reveal_cells(reveal_sequence, current_id) {
     /*
     注意！所有 reveal cell 的行为必须通过此 admin_reveal_cell 函数，因为所有游戏状态的检测和修改都在此函数内，此处为分界线。
     算法也统一在此处更新，因为每次棋盘内容有变动都需要及时更新可解性（solvability）信息。
@@ -409,24 +452,30 @@ function admin_reveal_cell(i, current_id, delay_animation = 0) {
     if (current_id !== ID) {
         return;
     }
-    if (!(DATA[i] & Cv_)) {
-        return;
+    for (const i of reveal_sequence) {
+        if (DATA[i] & Cv_) {
+            DATA[i] &= ~Cv_;
+            counter_covered--;
+            remove_cell_from_solutions(i);
+
+            if (DATA[i] & Mi_) {
+                terminate(false);
+            } else if (counter_covered === N) {
+                terminate(true);
+            }
+        }
     }
 
-    DATA[i] &= ~Cv_;
-    counter_revealed++;
-    remove_cell_from_solutions(i);
+    if (!game_over) {
+        for (const i of reveal_sequence) {
+            init_module(i);
+        }
+        remove_opened_cells_from_module_collection(reveal_sequence);
+        calculate_complete_module_collection();
+    }
+
     update_solvability_info();
-
-    setTimeout(() => {
-        play_reveal_animation(i, current_id);
-    }, delay_animation)
-
-    if (DATA[i] & Mi_) {
-        terminate(false);
-    } else if (!game_over && counter_revealed === X * Y - N) {
-        terminate(true);
-    }
+    play_reveal_cells_animation(reveal_sequence, ID);
 }
 function mark_cell(i) {
     if (game_over || !(DATA[i] & Cv_)) {
@@ -452,8 +501,611 @@ function terminate(completed) {
         document.getElementById('status-info').textContent = 'Failed';
         send_notice('failed');
     }
+    log_algorithm_performance();
 }
-// Todo 1.3 - Algorithm Part 2
+// Todo 1.3 - Administrator Function
+function activate_algorithm() {
+    algorithm_enabled = true;
+    update_solvability_info();
+    send_notice('alg_activated');
+    console.warn("Algorithm activated.");
+}
+function deactivate_algorithm() {
+    algorithm_enabled = false;
+    update_solvability_info();
+    send_notice('alg_deactivated');
+    console.warn("Algorithm deactivated.");
+}
+function toggle_mines_visibility() {
+    mines_visible = !mines_visible;
+    update_mines_visibility();
+    update_ans_button_selection();
+}
+function notice_test() {
+    let time_out = 0;
+    Object.keys(NOTICE_CONFIG).forEach(type => {
+        setTimeout(() => {
+            send_notice(type, false);
+        }, time_out);
+        time_out += 500;
+    });
+    setTimeout(() => {
+        send_test_result_notice("1024 0024<br>");
+    }, time_out)
+}
+// Todo 1.4 - Test Mode
+function test() {
+    cursor_enabled = false;
+
+    set_background();
+    send_notice('test_start', false);
+    solving_test();
+}
+function exit_test() {
+    current_test_id = null;
+    mines_visible = false;
+
+    update_ans_button_selection();
+    close_solving_test_ui();
+    close_reset_test_ui();
+    update_sidebar_buttons();
+    send_notice('test_end', false);
+    start();
+}
+// Todo 1.5 - Solving Algorithm Completeness Test
+function solving_test() {
+    current_test_id = 0;
+    mines_visible = false;
+
+    update_ans_button_selection();
+    close_reset_test_ui();
+    generate_solving_test_ui();
+    update_sidebar_buttons();
+    start();
+}
+async function calculate_and_visualize_solutions() {
+    if (game_over) return;
+    for (let i = 0; i < X * Y; i++) {
+        CELL_ELEMENTS[i].classList.remove('solution-mdl', 'solution-verifier', 'solution-both');
+    }
+
+    await calculate_solutions_of_verifier();
+
+    let solutions_consistent= true;
+    for (let i = 1; i < bitmap_size; i++) {
+        const bits = solutions[i];
+        const bits_verifier = solutions_verifier[i];
+
+        if (!bits && !bits_verifier) {
+            continue;
+        } else if (bits !== bits_verifier) {
+            solutions_consistent = false;
+        }
+
+        for (let bit_position = 0; bit_position < 32; bit_position++) {
+            const index = (i - 1) * 32 + bit_position;
+            const cell_element = CELL_ELEMENTS[index];
+
+            const is_solution_in_mdl = bits & (1 << bit_position);
+            const is_solution_in_verifier = bits_verifier & (1 << bit_position);
+
+            if (is_solution_in_mdl && is_solution_in_verifier) {
+                cell_element.classList.add('solution-both');
+            } else if (is_solution_in_mdl) {
+                cell_element.classList.add('solution-mdl');
+            } else if (is_solution_in_verifier) {
+                cell_element.classList.add('solution-verifier');
+            }
+        }
+    }
+
+    if (!solutions_consistent) {
+        send_test_result_notice(
+            'Solutions of MDL-Algorithm and Verifier are inconsistent. Screenshot captured automatically.<br>'
+        );
+        await screenshot_data();
+    }
+}
+async function continue_solving_test() {
+    if (game_over) return;
+    if (!first_click) {
+        for (let i = 1; i < bitmap_size; i++) {
+            const bits = solutions[i]
+            const bits_verifier = solutions_verifier[i];
+            if (bits !== bits_verifier) {
+                send_notice('progression_blocked');
+                return false;
+            }
+        }
+    }
+
+    if (first_click || !solvable) {
+        const random_selection = extract_random_safe_cell();
+        select_cell(random_selection);
+    } else {
+        const selections = extract_indices_from_bitmap(solutions);
+        const reveal_sequence = calculate_reveal_sequence(selections);
+        admin_reveal_cells(reveal_sequence, ID);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 50 + REVEAL_DELAY_LIMIT));
+    await calculate_and_visualize_solutions();
+
+    return true;
+}
+async function complete_full_solving_test() {
+    if (game_over) {
+        return;
+    }
+    if (is_testing) {
+        is_testing = false;
+        return;
+    }
+    document.getElementById('complete-test-btn').classList.add('selected');
+    is_testing = true;
+    let solutions_completeness = true;
+    while (!game_over && is_testing && solutions_completeness) {
+        solutions_completeness = await continue_solving_test();
+        if (!game_over && is_testing && solutions_completeness) {
+            await new Promise(resolve => setTimeout(resolve, AUTO_SOLVING_TEST_INTERVAL));
+        }
+    }
+    document.getElementById('complete-test-btn').classList.remove('selected');
+    is_testing = false;
+}
+// Todo 1.6 - Reset Algorithm Validation Test
+function reset_test() {
+    current_test_id = 1;
+    mines_visible = false;
+
+    update_ans_button_selection();
+    close_solving_test_ui();
+    generate_reset_test_ui();
+    update_reset_test_selection();
+    update_sidebar_buttons();
+    start();
+}
+function select_test(target_test_id) {
+    current_test_id = target_test_id;
+    start();
+    update_reset_test_selection();
+    update_ans_button_selection();
+}
+function select_previous_reset_test() {
+    if (current_test_id === 0) return;
+    const previous_test_id = current_test_id > 1 ? current_test_id - 1 : TEST_SIZE;
+    select_test(previous_test_id);
+}
+function select_next_reset_test() {
+    if (current_test_id === 0) return;
+    const next_test_id = current_test_id < TEST_SIZE ? current_test_id + 1 : 1;
+    select_test(next_test_id);
+}
+
+
+
+// < PART 2 - ALGORITHM >
+
+// Todo 2.1 - Bitmap Analyse
+function mark_bitmap_as_solution(target_bitmap) {
+    const indices = extract_indices_from_bitmap(target_bitmap);
+    for (const i of indices) {
+        DATA[i] |= Is_;
+    }
+    for (let i = 0; i < module_collection.length; i++) {
+        const module_i = module_collection[i];
+        if (module_i) {
+            for (let array_position = 1; array_position < bitmap_size; array_position++) {
+                module_i[array_position] &= ~target_bitmap[array_position];
+            }
+            module_collection[i] = module_i;
+        }
+    }
+    add_module_cells_to_solutions(target_bitmap);
+}
+function mark_bitmap_as_mine(target_bitmap) {
+    const indices = extract_indices_from_bitmap(target_bitmap);
+    for (const i of indices) {
+        DATA[i] |= Im_;
+    }
+    for (let i = 0; i < module_collection.length; i++) {
+        const module_i = module_collection[i];
+        if (module_i) {
+            const original_cell_count = count_bits(module_i);
+            for (let array_position = 1; array_position < bitmap_size; array_position++) {
+                module_i[array_position] &= ~target_bitmap[array_position];
+            }
+            const remaining_cell_count = count_bits(module_i);
+            module_i[0] -= original_cell_count - remaining_cell_count;
+            module_collection[i] = module_i;
+        }
+    }
+}
+function remove_cell_from_solutions(target_cell) {
+    const array_position = ((target_cell / 32) | 0);
+    const bit_position = target_cell - array_position * 32;
+    solutions[array_position + 1] &= ~(1 << bit_position);
+}
+function extract_indices_from_bitmap(target_bitmap) {
+    const indices = [];
+    for (let array_position = 1; array_position < bitmap_size; array_position++) {
+        let bits = target_bitmap[array_position];
+        let bit_position = 0;
+        while (bits) {
+            if (bits & 1) {
+                const index = (array_position - 1) * 32 + bit_position;
+                indices.push(index);
+            }
+            bits >>>= 1;
+            bit_position++;
+        }
+    }
+    return indices;
+}
+function extract_bitwise_intersection(bitmap_a, bitmap_b) {
+    const result = new Uint32Array(bitmap_size).fill(0);
+    for (let i = 1; i < bitmap_size; i++) {
+        result[i] = bitmap_a[i] & bitmap_b[i];
+    }
+    return result;
+}
+function extract_bitwise_difference(bitmap_a, bitmap_b) {
+    const result = new Uint32Array(bitmap_size).fill(0);
+    for (let i = 1; i < bitmap_size; i++) {
+        result[i] = bitmap_a[i] & ~bitmap_b[i];
+    }
+    return result;
+}
+function count_bits(bitmap) {
+    let count = 0;
+    for (let i = 1; i < bitmap_size; i++) {
+        let v = bitmap[i];
+        while (v) {
+            v &= v - 1;
+            count++;
+        }
+    }
+    return count;
+}
+// Todo 2.2 - Module Analyse
+function init_module(center_index) {
+    const module = new Uint32Array(bitmap_size).fill(0);
+    module[0] = DATA[center_index] & Nr_;
+    const x = (center_index / Y) | 0;
+    const y = center_index - x * Y;
+    for (let n = 0; n < 8; n++) {
+        const ix = x + DX[n];
+        const iy = y + DY[n];
+        if (ix >= 0 && ix < X && iy >= 0 && iy < Y) {
+            const i = ix * Y + iy;
+            if (!(DATA[i] & Cv_)) {
+                continue;
+            }
+            if (DATA[i] & Is_) {
+                continue;
+            }
+            if (DATA[i] & Im_) {
+                module[0]--;
+                continue;
+            }
+            add_cell_to_module(i, module);
+        }
+    }
+    module_collection.push(module);
+}
+function add_cell_to_module(cell_index, module) {
+    const array_position = ((cell_index / 32) | 0);
+    const bit_position = cell_index - array_position * 32;
+    module[array_position + 1] |= (1 << bit_position);
+}
+function add_module_cells_to_solutions(target_bitmap) {
+    for (let index = 1; index < bitmap_size; index++) {
+        solutions[index] |= target_bitmap[index];
+    }
+}
+function process_module_pair(i, j) {
+    /*
+    此函数会分析两个输入模块的关系，并尝试生成所有可能的新模块。
+    它的优化在于一次遍历直接分析出两个元素的所有关系，然后按照关系耗时和关系出现频率依次处理，比如不相交（disjoint）和
+    相等（equals）的情况最常见和简单，可快速排除。巧妙的是排除后就不需要考虑真包含（real subset）和包含（subset）的区别，
+    而下一步排除了包含关系就不再需要判断真相交（real intersect）和相交（intersect）的区别（这里我用到的真相交是指两者相交
+    但不存在包含关系）。
+    由于模块（module）的设计是完美的，分析两个模块以及创建新模块的代码非常简单。
+     */
+    const module_i = module_collection[i];
+    const module_j = module_collection[j];
+    if (!module_i || !module_j) {
+        return false;
+    }
+    module_collection[i] = null;
+    module_collection[j] = null;
+
+    let i_empty = true;
+    let j_empty = true;
+    let i_subset_j = true;
+    let j_subset_i = true;
+    let equals = true;
+    let intersect = false;
+
+    for (let i = 1; i < bitmap_size; i++) {
+        const data_i = module_i[i];
+        const data_j = module_j[i];
+
+        if (data_i) {
+            i_empty = false;
+        }
+        if (data_j) {
+            j_empty = false;
+        }
+        if (data_i !== data_j) {
+            equals = false;
+        }
+        if ((data_i & ~data_j) !== 0) {
+            i_subset_j = false;
+        }
+        if ((data_j & ~data_i) !== 0) {
+            j_subset_i = false;
+        }
+        if ((data_i & data_j) !== 0) {
+            intersect = true;
+        }
+    }
+
+    if (i_empty || j_empty) {
+        if (!i_empty) {
+            module_collection[i] = module_i;
+        }
+        if (!j_empty) {
+            module_collection[j] = module_j;
+        }
+        return false;
+    }
+
+    if (equals) {
+        module_collection[i] = module_i;
+        return false;
+    }
+    if (!intersect) {
+        module_collection[i] = module_i;
+        module_collection[j] = module_j;
+        return false;
+    }
+
+    // Real-Subset
+    const i_0 = module_i[0], j_0 = module_j[0];
+    if (i_subset_j) {
+        const module_k = new Uint32Array(bitmap_size).fill(0);
+        module_k[0] = j_0 - i_0;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_k[i] = module_j[i] & ~module_i[i];
+        }
+        module_collection[i] = module_i;
+        module_collection[j] = module_k;
+        return true;
+    }
+    if (j_subset_i) {
+        const module_k = new Uint32Array(bitmap_size).fill(0);
+        module_k[0] = i_0 - j_0;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_k[i] = module_i[i] & ~module_j[i];
+        }
+        module_collection[j] = module_j;
+        module_collection[i] = module_k;
+        return true;
+    }
+
+    // Real-Intersect
+    const intersection = extract_bitwise_intersection(module_i, module_j);
+    const diff_ij = extract_bitwise_difference(module_i, module_j);
+    const diff_ji = extract_bitwise_difference(module_j, module_i);
+
+    const count_diff_ij = count_bits(diff_ij);
+    const count_diff_ji = count_bits(diff_ji);
+
+    if (j_0 - i_0 === count_diff_ji) {
+        const module_1 = new Uint32Array(bitmap_size).fill(0);
+        module_1[0] = 0;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_1[i] = diff_ij[i];
+        }
+        mark_bitmap_as_solution(module_1);
+
+        // module_2: b_diff_a, mines = count_diff_ba
+        const module_2 = new Uint32Array(bitmap_size).fill(0);
+        module_2[0] = count_diff_ji;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_2[i] = diff_ji[i];
+        }
+        mark_bitmap_as_mine(module_2);
+
+        // module_3: intersection, mines = i[0]
+        const module_3 = new Uint32Array(bitmap_size).fill(0);
+        module_3[0] = i_0;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_3[i] = intersection[i];
+        }
+        module_collection[i] = module_3;
+        return true;
+    }
+    if (i_0 - j_0 === count_diff_ij) {
+        // module_1: j_diff_i, mines = 0
+        const module_1 = new Uint32Array(bitmap_size).fill(0);
+        module_1[0] = 0;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_1[i] = diff_ji[i];
+        }
+        mark_bitmap_as_solution(module_1);
+
+        // module_2: i_diff_j, mines = count_diff_ij
+        const module_2 = new Uint32Array(bitmap_size).fill(0);
+        module_2[0] = count_diff_ij;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_2[i] = diff_ij[i];
+        }
+        mark_bitmap_as_mine(module_2);
+
+        // module_3: intersection, mines = j[0]
+        const module_3 = new Uint32Array(bitmap_size).fill(0);
+        module_3[0] = j_0;
+        for (let i = 1; i < bitmap_size; i++) {
+            module_3[i] = intersection[i];
+        }
+        module_collection[i] = module_3;
+        return true;
+    }
+
+    module_collection[i] = module_i;
+    module_collection[j] = module_j;
+    return false;
+}
+// Todo 2.3 - Module Collection Analyse
+function init_module_collection() {
+    module_collection = [];
+    const inverse_module = new Uint32Array(bitmap_size).fill(0);
+    inverse_module[0] = N;
+    for (let i = 0; i < X * Y; i++) {
+        add_cell_to_module(i, inverse_module);
+    }
+    module_collection.push(inverse_module);
+
+    total_module_calculation_time = 0;
+    total_module_calculation_calls = 0;
+}
+function calculate_complete_module_collection() {
+    const start_time = performance.now()
+
+    let generated_informative_module = true;
+    while (generated_informative_module) {
+        generated_informative_module = false;
+        for (let i = 0; i < module_collection.length; i++) {
+            for (let j = i + 1; j < module_collection.length; j++) {
+                generated_informative_module |= process_module_pair(i, j);
+            }
+        }
+        generated_informative_module |= filter_decidable_modules();
+        filter_null_modules();
+        console.log(`Module Collection Size: ${module_collection.length}`);
+    }
+
+    const end_time = performance.now();
+    const duration = end_time - start_time;
+    total_module_calculation_time += duration;
+    total_module_calculation_calls++;
+}
+function filter_null_modules() {
+    let write = 0;
+    for (let read = 0; read < module_collection.length; read++) {
+        if (module_collection[read] !== null) {
+            if (read !== write) {
+                module_collection[write] = module_collection[read];
+            }
+            write++;
+        }
+    }
+    module_collection.length = write;
+}
+function filter_decidable_modules() {
+    let module_decided = false;
+    for (let i = 0; i < module_collection.length; i++) {
+        const module = module_collection[i];
+        if (module) {
+            if (module[0] === 0) {
+                module_collection[i] = null;
+                mark_bitmap_as_solution(module);
+                module_decided = true;
+            } else if (module[0] === count_bits(module)) {
+                module_collection[i] = null;
+                mark_bitmap_as_mine(module);
+                module_decided = true;
+            }
+        }
+    }
+    return module_decided;
+}
+function remove_opened_cells_from_module_collection(list) {
+    const module = new Uint32Array(bitmap_size).fill(0);
+    for (const i of list) {
+        add_cell_to_module(i, module);
+    }
+    for (let i = 0; i < module_collection.length; i++) {
+        const module_i = module_collection[i];
+        if (module_i) {
+            for (let array_position = 1; array_position < bitmap_size; array_position++) {
+                module_i[array_position] &= ~module[array_position];
+            }
+            module_collection[i] = module_i;
+        }
+    }
+}
+// Todo 2.4 - Module-based Solving Algorithm
+function check_solvability() {
+    /*
+    在这个函数中我们会查看 solutions 列表的大小，这个列表非空意味着有解。如果当前无解，就不断地进行计算更多模块（module）
+    如果计算到完全模块集（complete_module_collection）还没有解，说明当前局面是无法通过计算得出解的。
+    逐步计算的目的是减轻计算机负担，因为实际上在每次玩家打开方格的时候都需要检测更新可解性（solvability），如果每次都以
+    计算出所有解为目的的话，会导致明显的延迟。
+     */
+    solvable = false;
+    for (let i = 1; i < solutions.length; i++) {
+        if (solutions[i]) {
+            solvable = true;
+            return;
+        }
+    }
+}
+function extract_random_safe_cell() {
+    if (first_click) {
+        return (Math.random() * X * Y) | 0;
+    }
+    const selections = [];
+    for (let i = 0; i < X * Y; i++) {
+        if (!(DATA[i] & Mi_) && (DATA[i] & Cv_)) {
+            selections.push(i);
+        }
+    }
+    const ri = (Math.random() * selections.length) | 0;
+    return selections[ri];
+}
+function solve() {
+    if (game_over) {
+        return;
+    }
+    if (!algorithm_enabled) {
+        send_notice('alg_not_enabled');
+        return;
+    }
+
+    if (first_click || !solvable) {
+        const random_selection = extract_random_safe_cell();
+        select_cell(random_selection);
+        return;
+    }
+
+    const selections = extract_indices_from_bitmap(solutions);
+    const queue = calculate_reveal_sequence(selections);
+    admin_reveal_cells(queue, ID);
+}
+async function solve_all() {
+    if (game_over) {
+        return;
+    }
+    if (!algorithm_enabled) {
+        send_notice('alg_not_enabled');
+        return;
+    }
+    if (is_solving) {
+        is_solving = false;
+        return;
+    }
+    document.getElementById('solve-all-btn').classList.add('selected');
+    is_solving = true;
+    while (!game_over && is_solving) {
+        solve();
+        await new Promise(resolve => setTimeout(resolve, AUTO_SOLVE_INTERVAL));
+    }
+    document.getElementById('solve-all-btn').classList.remove('selected');
+    is_solving = false;
+}
 function send_hint() {
     if (game_over) {
         return;
@@ -463,29 +1115,16 @@ function send_hint() {
         return;
     }
 
-    const hint_list = [];
-    if (first_step || !solvable) {
-        for (let i = 0; i < X * Y; i++) {
-            if (!(DATA[i] & Mi_) && (DATA[i] & Cv_)) {
-                hint_list.push(i);
-            }
-        }
+    let hint_index;
+    if (first_click || !solvable) {
+        hint_index = extract_random_safe_cell();
     } else {
-        for (let i = 1; i < bitmap_size; i++) {
-            let bits = solutions[i];
-            if (bits === 0) continue;
-            for (let bit_position = 0; bit_position < 32; bit_position++) {
-                if (bits & (1 << bit_position)) {
-                    const index = (i - 1) * 32 + bit_position;
-                    hint_list.push(index);
-                }
-            }
-        }
+        const solutions_indices = extract_indices_from_bitmap(solutions);
+        const random_index = (Math.random() * solutions_indices.length) | 0;
+        hint_index = solutions_indices[random_index];
     }
-    const ri = (Math.random() * hint_list.length) | 0;
-    const r_hint = hint_list[ri];
 
-    const target_element = CELL_ELEMENTS[r_hint];
+    const target_element = CELL_ELEMENTS[hint_index];
     target_element.classList.add('hint');
     setTimeout(() => {
         target_element.classList.remove('hint');
@@ -506,9 +1145,6 @@ function auto_mark() {
         send_notice('alg_not_enabled');
         return;
     }
-    init_module_collection();
-    calculate_partially_module_collection(false);
-    calculate_complete_module_collection();
     for (let i = 0; i < X * Y; i++) {
         if ((DATA[i] & Im_) && (DATA[i] & Cv_)) {
             const target_element = CELL_ELEMENTS[i];
@@ -520,426 +1156,7 @@ function auto_mark() {
     }
     update_marks_info();
 }
-function solve() {
-    if (game_over) {
-        return;
-    }
-    if (!algorithm_enabled) {
-        send_notice('alg_not_enabled');
-        return;
-    }
-    if (first_step || !solvable) {
-        const selections = [];
-        for (let i = 0; i < X * Y; i++) {
-            if (!(DATA[i] & Mi_) && (DATA[i] & Cv_)) {
-                selections.push(i);
-            }
-        }
-        const ri = (Math.random() * selections.length) | 0;
-        select_cell(selections[ri]);
-        update_solvability_info();
-        return;
-    }
-    for (let i = 1; i < bitmap_size; i++) {
-        let bits = solutions[i];
-        if (bits === 0) continue;
-        for (let bit_position = 0; bit_position < 32; bit_position++) {
-            if (bits & (1 << bit_position)) {
-                const index = (i - 1) * 32 + bit_position;
-                select_cell(index);
-            }
-        }
-    }
-    update_solvability_info();
-}
-async function solve_all() {
-    if (game_over) {
-        return;
-    }
-    if (!algorithm_enabled) {
-        send_notice('alg_not_enabled');
-        return;
-    }
-    if (is_solving) {
-        is_solving = false;
-        return;
-    }
-    document.getElementById('solve-all-btn').classList.add('selected');
-    is_solving = true;
-    while (!game_over && is_solving) {
-        solve();
-        await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    document.getElementById('solve-all-btn').classList.remove('selected');
-    is_solving = false;
-}
-// Todo 1.4 - Algorithm Part 1
-function check_solvability() {
-    /*
-    在这个函数中我们会查看 solutions 列表的大小，这个列表非空意味着有解。如果当前无解，就不断地进行计算更多模块（module）
-    如果计算到完全模块集（complete_module_collection）还没有解，说明当前局面是无法通过计算得出解的。
-    逐步计算的目的是减轻计算机负担，因为实际上在每次玩家打开方格的时候都需要检测更新可解性（solvability），如果每次都以
-    计算出所有解为目的的话，会导致明显的延迟。
-     */
-    solvable = false;
-    for (let i = 1; i < solutions.length; i++) {
-        if (solutions[i]) {
-            solvable = true;
-            return;
-        }
-    }
-    init_module_collection();
-    calculate_partially_module_collection();
-    for (let i = 1; i < solutions.length; i++) {
-        if (solutions[i]) {
-            solvable = true;
-            return;
-        }
-    }
-    calculate_complete_module_collection();
-    for (let i = 1; i < solutions.length; i++) {
-        if (solutions[i]) {
-            solvable = true;
-            return;
-        }
-    }
-}
-function calculate_complete_module_collection() {
-    /*
-    此函数运行的条件是，仅靠 init_module_collection 函数创建的初始模块集无法继续通过内部元素的迭代计算找到解，
-    因此在这个函数中不必再迭代，而是需要手动添加一个全局模块（inverse module），后续简称 inverse。
-
-    注意！这一步不能将其加入模块集然后继续进行内部迭代运算，会产生非常多的无效模块导致卡顿，最好的方式是先将被标记为
-    雷的坐标排除在 inverse 之外，然后不断取模块集中的模块出来尝试缩小 inverse 的范围。
-    inverse 元素能提供的一个重要信息是雷的总数，这是其它模块提供不了的。例如当棋盘上有 4 个未打开且不确定的方格，
-    而目前只剩 1 个雷的位置不确定，那么创建出的初始的 inverse 就是 4 选 1 的状态，如果这时还有一个模块是 2 选 1
-    的状态，那么可以将这个模块从 inverse 中剔除，更新后的 inverse 就是 2 选 0 的状态。
-    这种思想就是 inverses Element，所以我这样命名。
-     */
-    for (let i = 0; i < module_collection.length; i++) {
-        const module = module_collection[i];
-        if (module[0] > 0 && module[0] === count_bits(module)) {
-            internal_mark_cells_in_module(module);
-        }
-    }
-    let inverse_module = new Uint32Array(bitmap_size).fill(0);
-    inverse_module[0] = N;
-    for (let i = 0; i < X * Y; i++) {
-        if (!(DATA[i] & Cv_)) {
-            continue;
-        }
-        if (DATA[i] & Im_) {
-            inverse_module[0]--;
-            continue;
-        }
-        add_cell_to_module(i, inverse_module);
-    }
-
-    for (const module of module_collection) {
-        const created_module = process_module_pair(module, inverse_module);
-        if (created_module.length === 1) {
-            inverse_module = created_module[0];
-        }
-    }
-    if (inverse_module[0] === 0) {
-        add_module_cells_to_solutions(inverse_module);
-    } else {
-        safe_push_module(inverse_module);
-        calculate_partially_module_collection(false);
-    }
-}
-function calculate_partially_module_collection(return_enabled = true) {
-    /*
-    此函数是与 init_module_collection 函数配套使用的，在由对方创建的初始模块集中，遍历所有模块让它们相互运算产生新的模块。
-    此函数可以有两种用法，通过输入参数控制，默认使用方法是以发现解为目的，一旦检测到某个模块中雷数为 0，将会在把这个模块中的
-    方格全部标记为解后迅速终止计算。
-    但是有时我们需要第二种用法：以计算出所有能计算出的模块为目的。例如在自动标记（auto_mark）功能中，我的意愿就是标记所有
-    可确认的雷，那么自然会需要所有的模块。在重置雷（reset）方法中也必须用到它。
-     */
-    solutions = new Uint32Array(bitmap_size).fill(0);
-    let saved_collection_size = 0;
-    while (saved_collection_size < module_collection.length) {
-        saved_collection_size = module_collection.length;
-        for (let i = 0; i < module_collection.length; i++) {
-            const module_i = module_collection[i];
-            if (module_i[0] === 0) {
-                add_module_cells_to_solutions(module_i);
-                if (return_enabled) {
-                    console.log(`2. partially ${module_collection.length}`);
-                    return;
-                }
-            }
-            for (let j = i + 1; j < module_collection.length; j++) {
-                const module_j = module_collection[j];
-                const created_module_list = process_module_pair(module_i, module_j);
-                for (const created_module of created_module_list) {
-                    safe_push_module(created_module);
-                }
-            }
-        }
-    }
-    console.log(`2. partially ${module_collection.length}`);
-}
-function init_module_collection() {
-    /*
-    此函数的作用是初始化模块集。方法是如下：
-    分析当前每个不覆盖的方格，先分析它周围的空格数量是否等于它自身的数字，如果相等将这个方格进行内部标记（internal mark）
-    对于被内部标记的格子，在创建模块的时候不会考虑到它，这样可以大幅减少模块集合的规模。
-    注意！这个标记和创建模块的过程实际上是相互辅佐的，我们会先创建一个模块，每当发现数字方格周围的一个未打开方格有内部标记时，
-    不会把这个内部标记加入模块中。
-    最后如果模块中未确认的雷的数量恰好等于它的未打开的方格的数量，这个模块不仅不会被添加到模块集里，还会将其内部的所有方格进行
-    内部标记，以便在创建其它模块时可以不需要再次辨别。
-     */
-    module_collection.length = 0;
-    for (let index = 0; index < X * Y; index++) {
-        if ((DATA[index] & Cv_)) {
-            continue;
-        }
-        const module = new Uint32Array(bitmap_size).fill(0);
-        module[0] = DATA[index] & Nr_;
-
-        let is_empty_module = true;
-        const idx = (index / Y) | 0;
-        const idy = index - idx * Y;
-        for (let n = 0; n < 8; n++) {
-            const x = idx + DX[n];
-            const y = idy + DY[n];
-            if (x >= 0 && x < X && y >= 0 && y < Y) {
-                const i = x * Y + y;
-                if (!(DATA[i] & Cv_)) {
-                    continue;
-                }
-                if (DATA[i] & Im_) {
-                    module[0]--;
-                    continue;
-                }
-                add_cell_to_module(i, module);
-                is_empty_module = false;
-            }
-        }
-        const module_size = count_bits(module);
-        if (module_size > 0) {
-            if (module_size === module[0]) {
-                internal_mark_cells_in_module(module);
-            }
-            safe_push_module(module);
-        }
-    }
-    console.log(`1. init ${module_collection.length.toString()}`);
-}
-// Todo 1.4 - Algorithm Part 1 - Module Collection
-function safe_push_module(module_input) {
-    for (const module of module_collection) {
-        if (equals_module(module_input, module)) {
-            return;
-        }
-    }
-    module_collection.push(module_input);
-}
-function add_module_cells_to_solutions(module) {
-    for (let index = 1; index < bitmap_size; index++) {
-        solutions[index] |= module[index];
-    }
-}
-function remove_cell_from_solutions(cell_index) {
-    const array_position = ((cell_index / 32) | 0);
-    const bit_position = cell_index - array_position * 32;
-    solutions[array_position + 1] &= ~(1 << bit_position);
-}
-function add_cell_to_module(cell_index, module) {
-    const array_position = ((cell_index / 32) | 0);
-    const bit_position = cell_index - array_position * 32;
-    module[array_position + 1] |= (1 << bit_position);
-}
-function internal_mark_cells_in_module(module) {
-    for (let array_position = 1; array_position < bitmap_size; array_position++) {
-        let bits = module[array_position];
-        if (bits === 0) continue;
-        for (let bit_position = 0; bit_position < 32; bit_position++) {
-            if (bits & (1 << bit_position)) {
-                const index = (array_position - 1) * 32 + bit_position;
-                DATA[index] |= Im_;
-            }
-        }
-    }
-}
-function process_module_pair(a, b) {
-    /*
-    此函数会分析两个输入模块的关系，并尝试生成所有可能的新模块。
-    它的优化在于一次遍历直接分析出两个元素的所有关系，然后按照关系耗时和关系出现频率依次处理，比如不相交（disjoint）和
-    相等（equals）的情况最常见和简单，可快速排除。巧妙的是排除后就不需要考虑真包含（real subset）和包含（subset）的区别，
-    而下一步排除了包含关系就不再需要判断真相交（real intersect）和相交（intersect）的区别（这里我用到的真相交是指两者相交
-    但不存在包含关系）。
-    由于模块（module）的设计是完美的，分析两个模块以及创建新模块的代码非常简单。
-     */
-    let equals = true;
-    let a_subset_b = true;
-    let b_subset_a = true;
-    let intersect = false;
-
-    for (let i = 1; i < bitmap_size; i++) {
-        const data_a = a[i];
-        const data_b = b[i];
-
-        if (data_a !== data_b) {
-            equals = false;
-        }
-        if ((data_a & ~data_b) !== 0) {
-            a_subset_b = false;
-        }
-        if ((data_b & ~data_a) !== 0) {
-            b_subset_a = false;
-        }
-        if ((data_a & data_b) !== 0) {
-            intersect = true;
-        }
-    }
-
-    // Equals / Disjoint
-    if (equals || !intersect) {
-        return [];
-    }
-    // Real-Subset
-    const a_0 = a[0], b_0 = b[0];
-    if (a_subset_b) {
-        const c = new Uint32Array(bitmap_size).fill(0);
-        c[0] = b_0 - a_0;
-        for (let i = 1; i < bitmap_size; i++) {
-            c[i] = b[i] & ~a[i];
-        }
-        return [c];
-    }
-    if (b_subset_a) {
-        const c = new Uint32Array(bitmap_size).fill(0);
-        c[0] = a_0 - b_0;
-        for (let i = 1; i < bitmap_size; i++) {
-            c[i] = a[i] & ~b[i];
-        }
-        return [c];
-    }
-
-    // Real-Intersect
-    const intersection = bitwise_intersection(a, b);
-    const diff_ab = bitwise_difference(a, b);
-    const diff_ba = bitwise_difference(b, a);
-
-    const count_diff_ab = count_bits(diff_ab);
-    const count_diff_ba = count_bits(diff_ba);
-
-    if (b_0 - a_0 === count_diff_ba) {
-        // module_1: a_diff_b, mines = 0
-        const module_1 = new Uint32Array(bitmap_size).fill(0);
-        module_1[0] = 0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_1[i] = diff_ab[i];
-        }
-
-        // module_2: b_diff_a, mines = count_diff_ba
-        const module_2 = new Uint32Array(bitmap_size).fill(0);
-        module_2[0] = count_diff_ba;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_2[i] = diff_ba[i];
-        }
-
-        // module_3: intersection, mines = a[0]
-        const module_3 = new Uint32Array(bitmap_size).fill(0);
-        module_3[0] = a_0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_3[i] = intersection[i];
-        }
-
-        return [module_1, module_2, module_3];
-    }
-    if (a_0 - b_0 === count_diff_ab) {
-        // module_1: b_diff_a, mines = 0
-        const module_1 = new Uint32Array(bitmap_size).fill(0);
-        module_1[0] = 0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_1[i] = diff_ba[i];
-        }
-
-        // module_2: a_diff_b, mines = count_diff_ab
-        const module_2 = new Uint32Array(bitmap_size).fill(0);
-        module_2[0] = count_diff_ab;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_2[i] = diff_ab[i];
-        }
-
-        // module_3: intersection, mines = b[0]
-        const module_3 = new Uint32Array(bitmap_size).fill(0);
-        module_3[0] = b_0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_3[i] = intersection[i];
-        }
-        return [module_1, module_2, module_3];
-    }
-    return [];
-}
-// Todo 1.4 - Algorithm Part 1 - Module Analyse
-/*
-这里是非常重要的说明！
-Module（模块）是我自己命名的一个扫雷游戏的概念，不是官方的/公认的，但在我各个版本的游戏中，我都使用了这个名称。
-我认为这个概念在求解的过程中是高效稳定和准确的，在以它为基础的分析下可以确保所有可解的情况被判断为可解，与另外两种方式比较：
-相较于 “计算动态概率分析” 更能解出特殊情况，相较于 “构建线性方程组求解” 更能处理大数据情况。
-
-在我以往的代码实现中，我通常创建一个类（Class Module），里面存储 int: number_of_mines 和 array/set: covered_positions，
-分别表示单个模块中雷的数量和方格（坐标）。
-我大致介绍一下它的分析方式，例如在当前棋盘上有一个数字为 1，而它周围有 3 个未打开的格子，那么我们就可以为此创建一个模块 A，
-它的数字为 1，方格为上述的三个格子，我们对当前每一个数字都创建一个模块，这就是模块集的初始化（init）。假设现在有另一个模块 B
-与 A 相交，那么我们可以分析它们的关系。那就继续假设 B 是 2 选 1 的状态，并且 B 的格子都属于 A，也就是说 B 是 A 的真子集，
-我们就可以创建一个新的模块 C，它的雷数为 AB 的差值（A.number - B.number），方格为差集（A.positions \ B.positions），
-这就是对模块集的扩张。
-具体的算法以及优化请查看代码，下面我要讲的是对模块这个结构的极端优化。
-
-假设我创建一个类（Class Module），或者不封装用数组的形式 [n, [positions...]]，或者直接以 [n, p1, p2, ...] 表达模块，
-会导致在分析两个之间的关系时操作过多，例如使用大量循环，创建大量临时数组。更重要的是它们的存储不连续，存储内容为数字，无法通过
-Uint8/16/32Array 进行压缩。
-在此我使用了新的存储方式：使用一个 Uint32Array 存储一个模块的两个信息。和上述存储方格的索引不同，这里使用位图存储方格的状态。
-例如在 4x4 的棋盘中，(0,0), (0,1), (1,1) 是一个模块的所有方格，由于 4x4 只需要占 16 bit 的内存，只需要一个位图就可存下，
-那这个模块就是一个长度为 2 的 Uint32Array。由于方格索引在被一维压缩优化后是 0,1,4，这个模块是这样的：[n, 0b00...10011]。
-
-对于 X * Y > 32 的情况，只需用多个 32 位数字分段存储它的位图，因此一个游戏中所有模块的长度（bitmap_size）在 start 函数中
-被计算和锁定。
-
-这种存储方式最强大的不是它的节约空间，而是在分析的过程中总是使用位运算，并且可以批量处理数据，这在下面 4 个基础的
-分析模块的函数中可以看出，但我认为最大的成效是，在模块中添加和删除方格时间复杂度为 O(1)，甚至在模块中添加和删除 n 个方格，
-时间复杂度都还是 O(1)，空间消耗几乎为 0，具体请参考将模块中所有方格标记为解的函数（add_module_cells_to_solutions），为了
-让模块与解列表（solutions）无障碍接轨，解列表也是位图结构（不使用它的第 0 位）。
- */
-function equals_module(a, b) {
-    for (let i = 0; i < bitmap_size; i++) {
-        if (a[i] !== b[i]) {
-            return false;
-        }
-    }
-    return true;
-}
-function bitwise_intersection(a, b) {
-    const result = new Uint32Array(bitmap_size).fill(0);
-    for (let i = 1; i < bitmap_size; i++) {
-        result[i] = a[i] & b[i];
-    }
-    return result;
-}
-function bitwise_difference(a, b) {
-    const result = new Uint32Array(bitmap_size).fill(0);
-    for (let i = 1; i < bitmap_size; i++) {
-        result[i] = a[i] & ~b[i];
-    }
-    return result;
-}
-function count_bits(bitmap) {
-    let count = 0;
-    for (let i = 1; i < bitmap_size; i++) {
-        let v = bitmap[i];
-        while (v) {
-            v &= v - 1;
-            count++;
-        }
-    }
-    return count;
-}
-// Todo 1.5 - Reset Algorithm
+// Todo 2.5 - Module-based Reset Algorithm
 function reset_mines(target_mine) {
     /*
     此函数会将输入坐标上的雷转移到其它位置，为确保移动前后所有展示出的数字没有变化，有时实际上必须移动很多关联的雷。
@@ -954,13 +1171,8 @@ function reset_mines(target_mine) {
     let test_result_text = '';
 
     const text_01 = 'Reset Algorithm Activated.';
-    test_result_text += text_01 + '<br>';
     console.warn(text_01);
-    for (const module of module_collection) {
-        if (module[0] > 0 && module[0] === count_bits(module)) {
-            internal_mark_cells_in_module(module);
-        }
-    }
+    test_result_text += text_01 + '<br>';
 
     if (DATA[target_mine] & Im_) {
         const text_02 = 'Clicked a cell that is definitely a mine'
@@ -971,24 +1183,12 @@ function reset_mines(target_mine) {
         return false;
     }
 
-    init_module_collection();
+    const DATA_COPY = new Uint8Array(DATA);
+
     const fake_module = new Uint32Array(bitmap_size).fill(0);
-    const array_position = (target_mine / 32) | 0;
-    const bit_position = target_mine - array_position * 32;
-    fake_module[array_position + 1] |= (1 << bit_position);
+    add_cell_to_module(target_mine, fake_module);
     module_collection.push(fake_module);
-
-    calculate_partially_module_collection(false);
     calculate_complete_module_collection();
-    for (const module of module_collection) {
-        if (module[0] === 0) {
-            add_module_cells_to_solutions(module);
-        } else if (module[0] === count_bits(module)) {
-            internal_mark_cells_in_module(module);
-        }
-    }
-
-    const COPY = new Uint8Array(DATA);
 
     let removed_candidate_list_1 = ` `;
     let added_candidate_list_1 = ` `;
@@ -1017,13 +1217,16 @@ function reset_mines(target_mine) {
             }
         }
     }
-    if (removed_counter_1 > 0) {
-        const text_11 = `1.Phase removed ${removed_counter_1}: <br>${removed_candidate_list_1}`
-        test_result_text += text_11 + '<br>'
-        console.warn(text_11);
-    }
+
 
     for (let index = 0; index < X * Y; index++) {
+        if ((DATA[index] & Is_) && (DATA[index] & Mi_)) {
+            remove_mine(index);
+            const ix = (index / Y) | 0;
+            const iy = index - ix * Y
+            removed_candidate_list_1 += `[${ix},${iy}] `
+            removed_counter_1++;
+        }
         if ((DATA[index] & Im_) && !(DATA[index] & Mi_)) {
             set_mine(index);
             const ix = (index / Y) | 0;
@@ -1031,6 +1234,11 @@ function reset_mines(target_mine) {
             added_candidate_list_1 += `[${ix},${iy}] `
             added_counter_1++;
         }
+    }
+    if (removed_counter_1 > 0) {
+        const text_11 = `1.Phase removed ${removed_counter_1}: <br>${removed_candidate_list_1}`
+        test_result_text += text_11 + '<br>'
+        console.warn(text_11);
     }
     if (added_counter_1 > 0) {
         const text_12 = `1.Phase added ${added_counter_1}: <br>${added_candidate_list_1}`
@@ -1047,7 +1255,7 @@ function reset_mines(target_mine) {
         if (DATA[i] & Cv_) {
             continue;
         }
-        if ((DATA[i] & Nr_) !== (COPY[i] & Nr_)) {
+        if ((DATA[i] & Nr_) !== (DATA_COPY[i] & Nr_)) {
             linked_number_cells.push(i);
             const ix = (i / Y) | 0;
             const iy = i - ix * Y;
@@ -1069,8 +1277,8 @@ function reset_mines(target_mine) {
     const linked_covered_cells = Array.from(linked_covered_cells_set);
     if (linked_covered_cells.length > 0) {
         let number_changed = true;
-        if (linked_covered_cells.length < 12) {
-            number_changed = !recursive_add_mines(COPY, linked_number_cells, linked_covered_cells);
+        if (linked_covered_cells.length < RESET_RECURSION_LIMIT) {
+            number_changed = !recursive_add_mines(DATA_COPY, linked_number_cells, linked_covered_cells);
             for (const i of linked_covered_cells) {
                 if (DATA[i] & Mi_) {
                     const ix = (i / Y) | 0;
@@ -1091,7 +1299,7 @@ function reset_mines(target_mine) {
 
 
     // 3. Phase - Begin
-    const current_number_of_mines = count_number_of_mines();
+    const current_number_of_mines = count_current_mines();
     const current_removed = N - current_number_of_mines;
     const current_added = current_number_of_mines - N;
 
@@ -1121,7 +1329,7 @@ function reset_mines(target_mine) {
             }
         }
         if (selections_1.length + selections_2.length < current_added) {
-            DATA.set(COPY);
+            DATA.set(DATA_COPY);
             update_all_cells_information_from_data();
 
             const text_31 = 'reset failed';
@@ -1188,7 +1396,7 @@ function reset_mines(target_mine) {
             }
         }
         if (selections_1.length + selections_2.length < current_removed) {
-            DATA.set(COPY);
+            DATA.set(DATA_COPY);
             update_all_cells_information_from_data();
 
             const text_33 = 'reset failed';
@@ -1247,15 +1455,11 @@ function reset_mines(target_mine) {
         }
     }
 
-    module_collection.length = 0;
-    solutions = new Uint32Array(bitmap_size).fill(0);
-    update_mines_visibility();
-    clear_all_internal_mark();
-
     const text_end = 'reset complete';
     test_result_text += text_end + '<br>';
     console.warn(text_end);
 
+    update_mines_visibility();
     send_notice('reset_complete', false);
     send_test_result_notice(test_result_text);
     return true;
@@ -1279,50 +1483,6 @@ function recursive_add_mines(COPY, linked_number_cells, linked_covered_cells, i 
     remove_mine(index);
     return false;
 }
-function remove_mine(index) {
-    DATA[index] &= ~Mi_;
-    update_cell_information_form_data(index);
-    const idx = (index / Y) | 0;
-    const idy = index - idx * Y;
-    for (let n = 0; n < 8; n++) {
-        const x = idx + DX[n];
-        const y = idy + DY[n];
-        if (x >= 0 && x < X && y >= 0 && y < Y) {
-            const i = x * Y + y;
-            DATA[i]--;
-            update_cell_information_form_data(i);
-        }
-    }
-}
-function set_mine(index) {
-    DATA[index] |= Mi_;
-    update_cell_information_form_data(index);
-    const idx = (index / Y) | 0;
-    const idy = index - idx * Y;
-    for (let n = 0; n < 8; n++) {
-        const x = idx + DX[n];
-        const y = idy + DY[n];
-        if (x >= 0 && x < X && y >= 0 && y < Y) {
-            const i = x * Y + y;
-            DATA[i]++;
-            update_cell_information_form_data(i);
-        }
-    }
-}
-function clear_all_internal_mark() {
-    for (let i = 0; i < X * Y; i++) {
-        DATA[i] &= ~Im_;
-    }
-}
-function count_number_of_mines() {
-    let counter = 0;
-    for (let i = 0; i < X * Y; i++) {
-        if (DATA[i] & Mi_) {
-            counter++;
-        }
-    }
-    return counter;
-}
 function partially_eq(COPY, linked_number_cells) {
     for (const index of linked_number_cells) {
         if ((DATA[index] & Nr_) !== (COPY[index] & Nr_)) {
@@ -1339,245 +1499,16 @@ function partially_leq(COPY, linked_number_cells) {
     }
     return true;
 }
-// Todo 1.6 - Administrator Function
-function activate_algorithm() {
-    algorithm_enabled = true;
-    update_solvability_info();
-    send_notice('alg_activated');
-    console.warn("Algorithm activated.");
-}
-function deactivate_algorithm() {
-    algorithm_enabled = false;
-    update_solvability_info();
-    send_notice('alg_deactivated');
-    console.warn("Algorithm deactivated.");
-}
-function toggle_mines_visibility() {
-    mines_visible = !mines_visible;
-    update_mines_visibility();
-    update_ans_button_selection();
-}
-function update_mines_visibility() {
-    if (mines_visible) {
-        for (let i = 0; i < X * Y; i++) {
-            if (DATA[i] & Mi_) {
-                CELL_ELEMENTS[i].classList.add('ans');
-            } else {
-                CELL_ELEMENTS[i].classList.remove('ans');
-            }
-        }
-    } else {
-        for (let i = 0; i < X * Y; i++) {
-            CELL_ELEMENTS[i].classList.remove('ans');
-        }
-    }
-}
-// Todo 1.7 - Test Mode
-function test() {
-    cursor_enabled = false;
-
-    set_background();
-    send_notice('test_start', false);
-    solving_test();
-}
-function exit_test() {
-    current_test_id = null;
-    mines_visible = false;
-
-    update_ans_button_selection();
-    close_solving_test_ui();
-    close_reset_test_ui();
-    update_sidebar_buttons();
-    send_notice('test_end', false);
-    start();
-}
-// Todo 1.7 - Test Mode - Solving Test
-function solving_test() {
-    current_test_id = 0;
-    mines_visible = false;
-
-    update_ans_button_selection();
-    close_reset_test_ui();
-    generate_solving_test_ui();
-    update_sidebar_buttons();
-    start();
-}
-async function calculate_and_visualize_solutions() {
-    if (game_over) return;
-    for (let i = 0; i < X * Y; i++) {
-        CELL_ELEMENTS[i].classList.remove('solution-sat', 'solution-mdl');
-    }
-
-    init_module_collection();
-    calculate_partially_module_collection(false);
-    calculate_complete_module_collection();
-
-    calculate_solutions_of_sat_solver();
-
-    let solutions_consistent= true;
-    for (let i = 1; i < bitmap_size; i++) {
-        const bits = solutions[i];
-        const bits_sat = solutions_sat[i];
-
-        if (bits === 0 && bits_sat === 0) {
-            continue;
-        } else if (bits !== bits_sat) {
-            solutions_consistent = false;
-        }
-
-        for (let bit_position = 0; bit_position < 32; bit_position++) {
-            const index = (i - 1) * 32 + bit_position;
-            const cell_element = CELL_ELEMENTS[index];
-
-            const is_solution_in_mdl = bits & (1 << bit_position);
-            const is_solution_in_sat = bits_sat & (1 << bit_position);
-
-            if (is_solution_in_mdl && is_solution_in_sat) {
-                cell_element.classList.add('solution-both');
-            } else if (is_solution_in_mdl) {
-                cell_element.classList.add('solution-mdl');
-            } else if (is_solution_in_sat) {
-                cell_element.classList.add('solution-sat');
-            }
-        }
-    }
-
-    if (!solutions_consistent) {
-        send_test_result_notice(
-            'Solutions of MDL- and SAT- Algorithms are inconsistent. Screenshot captured automatically.<br>'
-        );
-        await screenshot_data();
-    }
-}
-async function continue_solving_test() {
-    if (game_over) return;
-    for (let i = 1; i < bitmap_size; i++) {
-        const bits = solutions[i];
-        const bits_sat = solutions_sat[i];
-
-        if (bits !== bits_sat) {
-            send_notice('progression_blocked');
-            return false;
-        }
-    }
-
-    if (first_step || !solvable) {
-        const selections = [];
-        for (let i = 0; i < X * Y; i++) {
-            if (!(DATA[i] & Mi_) && (DATA[i] & Cv_)) {
-                selections.push(i);
-            }
-        }
-        const ri = (Math.random() * selections.length) | 0;
-        select_cell(selections[ri]);
-    } else {
-        for (let i = 1; i < bitmap_size; i++) {
-            let bits = solutions[i];
-            if (bits === 0) continue;
-            for (let bit_position = 0; bit_position < 32; bit_position++) {
-                if (bits & (1 << bit_position)) {
-                    const index = (i - 1) * 32 + bit_position;
-                    select_cell(index);
-                }
-            }
-        }
-    }
-    update_solvability_info();
-
-    await new Promise(resolve => setTimeout(resolve, 50 + DELAY_LIMIT));
-    await calculate_and_visualize_solutions();
-
-    return true;
-}
-async function complete_full_test() {
-    if (game_over) {
-        return;
-    }
-    if (is_testing) {
-        is_testing = false;
-        return;
-    }
-    document.getElementById('complete-test-btn').classList.add('selected');
-    is_testing = true;
-    let solutions_consistent = true;
-    while (!game_over && is_testing && solutions_consistent) {
-        solutions_consistent = await continue_solving_test();
-        if (!game_over && is_testing && solutions_consistent) {
-            await new Promise(resolve => setTimeout(resolve, 800));
-        }
-    }
-    document.getElementById('complete-test-btn').classList.remove('selected');
-    is_testing = false;
-}
-// Todo 1.7 - Test Mode - Reset Test
-function reset_test() {
-    current_test_id = 1;
-    mines_visible = false;
-
-    update_ans_button_selection();
-    close_solving_test_ui();
-    generate_reset_test_ui();
-    update_reset_test_selection();
-    update_sidebar_buttons();
-    start();
-}
-function select_test(target_test_id) {
-    current_test_id = target_test_id;
-    start();
-    update_reset_test_selection();
-    update_ans_button_selection();
-}
-function select_previous_reset_test() {
-    if (current_test_id === 0) return;
-    const previous_test_id = current_test_id > 1 ? current_test_id - 1 : TEST_SIZE;
-    select_test(previous_test_id);
-}
-function select_next_reset_test() {
-    if (current_test_id === 0) return;
-    const next_test_id = current_test_id < TEST_SIZE ? current_test_id + 1 : 1;
-    select_test(next_test_id);
-}
-// Todo 1.9 - Algorithm - SAT_Solver
-function calculate_solutions_of_sat_solver() {
-    solutions_sat = new Uint32Array(solutions);
+// Todo 2.6 - Verifier
+async function calculate_solutions_of_verifier() {
+    solutions_verifier = new Uint32Array(solutions);
 }
 
 
 
-// < Part 2 - UI >
+// < PART 3 - VISUALIZATION & INTERACTION >
 
-// Todo 2.1 - Init
-function init_information_box() {
-    document.getElementById("status-info").textContent = "Ready to start";
-    document.getElementById("time-info").textContent = "---";
-
-    document.getElementById('size-info').textContent = `${X} × ${Y} / Mines ${N}`;
-    document.getElementById('marks-info').textContent = counter_marked.toString();
-
-    const density = (N / (X * Y) * 100).toFixed(2);
-    document.getElementById('density-info').textContent = `${density}%`;
-}
-function render_border() {
-    const BORDER_OFFSET = 1;
-    const BORDER_OFFSET_OUTLINE = 3;
-
-    const width = Y * CELL_SIZE;
-    const height = X * CELL_SIZE;
-
-    const border = document.getElementById('border');
-    border.style.width = `${width + 2 * BORDER_OFFSET}px`;
-    border.style.height = `${height + 2 * BORDER_OFFSET}px`;
-    border.style.left = `${-BORDER_OFFSET}px`;
-    border.style.top = `${-BORDER_OFFSET}px`;
-    border.style.display = 'block';
-
-    const border_outline = document.getElementById('border-outline');
-    border_outline.style.width = `${width + 2 * BORDER_OFFSET_OUTLINE}px`;
-    border_outline.style.height = `${height + 2 * BORDER_OFFSET_OUTLINE}px`;
-    border_outline.style.left = `${-BORDER_OFFSET_OUTLINE}px`;
-    border_outline.style.top = `${-BORDER_OFFSET_OUTLINE}px`;
-    border_outline.style.display = 'block';
-}
+// Todo 3.1 - Board Rending
 function generate_game_field() {
     CELL_ELEMENTS = new Array(X * Y);
     const board_element = document.getElementById("board");
@@ -1600,30 +1531,100 @@ function generate_game_field() {
         CELL_ELEMENTS[i] = div;
     }
 }
-function format_number(n) {
-    if (n === 0) {
-        return ' ';
-    }
-    if (n >= 1 && n <= 9) {
-        return n.toString();
-    }
-    if (n >= 10 && n <= 35) {
-        return String.fromCharCode(65 + (n - 10));
-    }
-    return '?';
+function render_border() {
+    const BORDER_OFFSET = 1;
+    const BORDER_OFFSET_OUTLINE = 3;
+
+    const width = Y * CELL_SIZE;
+    const height = X * CELL_SIZE;
+
+    const border = document.getElementById('border');
+    border.style.width = `${width + 2 * BORDER_OFFSET}px`;
+    border.style.height = `${height + 2 * BORDER_OFFSET}px`;
+    border.style.left = `${-BORDER_OFFSET}px`;
+    border.style.top = `${-BORDER_OFFSET}px`;
+    border.style.display = 'block';
+
+    const border_outline = document.getElementById('border-outline');
+    border_outline.style.width = `${width + 2 * BORDER_OFFSET_OUTLINE}px`;
+    border_outline.style.height = `${height + 2 * BORDER_OFFSET_OUTLINE}px`;
+    border_outline.style.left = `${-BORDER_OFFSET_OUTLINE}px`;
+    border_outline.style.top = `${-BORDER_OFFSET_OUTLINE}px`;
+    border_outline.style.display = 'block';
 }
-function format_time(timestamp, used_in_filename = false) {
-    let date = new Date(timestamp);
-    let Y = date.getFullYear();
-    let M = String(date.getMonth() + 1).padStart(2, '0');
-    let D = String(date.getDate()).padStart(2, '0');
-    let h = String(date.getHours()).padStart(2, '0');
-    let m = String(date.getMinutes()).padStart(2, '0');
-    let s = String(date.getSeconds()).padStart(2, '0');
-    if (used_in_filename) {
-        return `${Y}_${M}_${D}_${h}_${m}_${s}`;
+function update_cell_information_from_data(i) {
+    const target_element = CELL_ELEMENTS[i];
+    const target_cell = DATA[i];
+    if (target_cell & Cv_) return;
+
+    if (target_cell & Mi_) {
+        target_element.textContent = ' ';
+        target_element.classList.add('mine');
     } else {
-        return `${h}:${m}:${s} / ${Y}.${M}.${D}`;
+        const number = (target_cell & Nr_);
+        target_element.textContent = number > 0 ? number.toString() : ' ';
+        target_element.classList.add('revealed');
+    }
+}
+function update_all_cells_information_from_data() {
+    for (let i = 0; i < X * Y; i++) {
+        update_cell_information_from_data(i);
+    }
+}
+function update_mines_visibility() {
+    if (mines_visible) {
+        for (let i = 0; i < X * Y; i++) {
+            if (DATA[i] & Mi_) {
+                CELL_ELEMENTS[i].classList.add('ans');
+            } else {
+                CELL_ELEMENTS[i].classList.remove('ans');
+            }
+        }
+    } else {
+        for (let i = 0; i < X * Y; i++) {
+            CELL_ELEMENTS[i].classList.remove('ans');
+        }
+    }
+}
+function update_cursor() {
+    CELL_ELEMENTS[cursor_path].classList.remove('cursor');
+    if (cursor_enabled) {
+        const target_element = CELL_ELEMENTS[cursor_x * Y + cursor_y];
+        target_element.classList.add('cursor');
+    }
+}
+// Todo 3.2 - Animations
+function play_reveal_cell_animation(i, current_id) {
+    if (current_id !== ID) {
+        return;
+    }
+    const target_element = CELL_ELEMENTS[i];
+    target_element.classList.remove('solution-mdl', 'solution-verifier', 'solution-both');
+    if (target_element.classList.contains('marked')) {
+        target_element.classList.remove('marked');
+        counter_marked--;
+        update_marks_info();
+    }
+    update_cell_information_from_data(i);
+}
+function play_reveal_cells_animation(queue, current_id) {
+    let delay = 0;
+    let index = 0;
+    while (delay < REVEAL_DELAY_LIMIT && index < queue.length) {
+        const i = queue[index];
+        setTimeout(() => {
+            play_reveal_cell_animation(i, current_id);
+        }, delay)
+        delay += REVEAL_DELAY;
+        index++;
+    }
+    if (index < queue.length) {
+        setTimeout(() => {
+            while (index < queue.length) {
+                play_reveal_cell_animation(queue[index], current_id);
+                index++;
+            }
+        }, delay)
     }
 }
 function play_start_animation(max_delay = 1000) {
@@ -1701,22 +1702,7 @@ function cleanup_animation() {
         CELL_ELEMENTS[i].style.willChange = 'auto';
     }
 }
-function preload_backgrounds() {
-    const path = 'Background_Collection/';
-    const resources = [
-        '01.jpg',
-        '02.jpg',
-        '03.jpg',
-        '04.jpg',
-        '05.jpg',
-    ];
-    setTimeout(() => {
-        resources.forEach(resource => {
-            new Image().src = path + resource;
-            console.log(`Loaded Background ${resource}`);
-        })
-    }, 1000);
-}
+// Todo 3.3 - Sidebar & Control Panel
 function update_sidebar_buttons() {
     close_difficulty_menu();
     close_background_menu();
@@ -1744,7 +1730,53 @@ function update_sidebar_buttons() {
         document.getElementById(btn_id).style.display = buttons_visibility[btn_id] ? 'block' : 'none';
     }
 }
-// Todo 2.2 - Edit Game Status
+function toggle_sidebar() {
+    document.body.classList.toggle('sidebar-collapsed');
+    close_difficulty_menu();
+    close_background_menu();
+}
+function toggle_information() {
+    const info_list = document.getElementById('information-list');
+    if (info_list.style.display === 'block') {
+        info_list.style.display = 'none';
+        document.getElementById('information-btn').classList.remove('selected');
+    } else {
+        info_list.style.display = 'block';
+        document.getElementById('information-btn').classList.add('selected');
+    }
+}
+function toggle_difficulty_dropdown() {
+    if (document.getElementById('difficulty-menu').style.display === 'none') {
+        open_difficulty_menu();
+    } else {
+        close_difficulty_menu();
+    }
+    close_background_menu();
+}
+function toggle_background_dropdown() {
+    if (document.getElementById('background-menu').style.display === 'none') {
+        open_background_menu();
+    } else {
+        close_background_menu();
+    }
+    close_difficulty_menu();
+}
+function open_difficulty_menu() {
+    document.getElementById('difficulty-menu').style.display = 'block';
+    document.getElementById('difficulty-btn').classList.add('selected');
+}
+function open_background_menu() {
+    document.getElementById('background-menu').style.display = 'block';
+    document.getElementById('background-btn').classList.add('selected');
+}
+function close_difficulty_menu() {
+    document.getElementById('difficulty-menu').style.display = 'none';
+    document.getElementById('difficulty-btn').classList.remove('selected');
+}
+function close_background_menu() {
+    document.getElementById('background-menu').style.display = 'none';
+    document.getElementById('background-btn').classList.remove('selected');
+}
 function set_difficulty(difficulty) {
     current_difficulty = difficulty;
     start();
@@ -1761,42 +1793,29 @@ function set_background(filename = 'default.jpg', title_image = 'dark') {
     }
     close_background_menu();
 }
-// Todo 2.3 - Update Game Information
-function update_cell_information_form_data(i) {
-    const target_element = CELL_ELEMENTS[i];
-    const target_cell = DATA[i];
-    if (target_cell & Cv_) return;
+function open_guide() {
+    document.getElementById('guide-modal').style.display = 'block';
+}
+function close_guide_with_button() {
+    document.getElementById('guide-modal').style.display = 'none';
+    document.getElementById('guide-btn').classList.remove('selected');
+}
+function close_guide(event) {
+    const content = document.getElementById('guide-content');
+    if (!content.contains(event.target)) {
+        close_guide_with_button();
+    }
+}
+// Todo 3.4 - Information Display & Notifications
+function init_information_box() {
+    document.getElementById("status-info").textContent = "Ready to start";
+    document.getElementById("time-info").textContent = "---";
 
-    if (target_cell & Mi_) {
-        target_element.textContent = ' ';
-        target_element.classList.add('mine');
-    } else {
-        const number = (target_cell & Nr_);
-        target_element.textContent = number > 0 ? number.toString() : ' ';
-        target_element.classList.add('revealed');
-    }
-}
-function update_all_cells_information_from_data() {
-    for (let i = 0; i < X * Y; i++) {
-        update_cell_information_form_data(i);
-    }
-}
-function start_timer() {
-    start_time = Date.now();
-    timer_interval = setInterval(update_time_info, 100);
-}
-function play_reveal_animation(i, current_id) {
-    if (current_id !== ID) {
-        return;
-    }
-    const target_element = CELL_ELEMENTS[i];
-    target_element.classList.remove('solution-mdl', 'solution-sat', 'solution-both');
-    if (target_element.classList.contains('marked')) {
-        target_element.classList.remove('marked');
-        counter_marked--;
-        update_marks_info();
-    }
-    update_cell_information_form_data(i);
+    document.getElementById('size-info').textContent = `${X} × ${Y} / Mines ${N}`;
+    document.getElementById('marks-info').textContent = counter_marked.toString();
+
+    const density = (N / (X * Y) * 100).toFixed(2);
+    document.getElementById('density-info').textContent = `${density}%`;
 }
 function update_time_info() {
     const elapsed = (Date.now() - start_time) / 1000;
@@ -1806,21 +1825,13 @@ function update_marks_info() {
     document.getElementById('marks-info').textContent = counter_marked;
 }
 function update_solvability_info() {
-    if (algorithm_enabled) {
+    if (game_over || !algorithm_enabled) {
+        document.getElementById('solvability-info').textContent = '---';
+    } else {
         check_solvability();
         document.getElementById('solvability-info').textContent = solvable ? 'True' : 'False';
-    } else {
-        document.getElementById('solvability-info').textContent = '---';
     }
 }
-function update_cursor() {
-    CELL_ELEMENTS[cursor_path].classList.remove('cursor');
-    if (cursor_enabled) {
-        const target_element = CELL_ELEMENTS[cursor_x * Y + cursor_y];
-        target_element.classList.add('cursor');
-    }
-}
-// Todo 2.4 - Message / Shortcuts
 function send_notice(type = 'default', locked = true) {
     const now = Date.now();
     if (locked) {
@@ -1846,7 +1857,7 @@ function send_notice(type = 'default', locked = true) {
     notice_title.innerHTML = title;
     notice_content.innerHTML = content;
     notice_progress.style.backgroundColor = color;
-    notice_progress.style.animation = `progressShrink ${TIMEOUT}ms linear forwards`;
+    notice_progress.style.animation = `progressShrink ${NOTICE_DISPLAY_TIME }ms linear forwards`;
 
     notice.appendChild(notice_title);
     notice.appendChild(notice_content);
@@ -1867,7 +1878,7 @@ function send_notice(type = 'default', locked = true) {
                 container.removeChild(notice);
             }
         }, 300);
-    }, TIMEOUT);
+    }, NOTICE_DISPLAY_TIME );
 }
 function send_test_result_notice(text) {
     if (current_test_id === null) {
@@ -1896,17 +1907,87 @@ function send_test_result_notice(text) {
 
     container.appendChild(test_result_notice);
 }
-function notice_test() {
-    let time_out = 0;
-    Object.keys(NOTICE_CONFIG).forEach(type => {
-        setTimeout(() => {
-            send_notice(type, false);
-        }, time_out);
-        time_out += 500;
+function log_algorithm_performance() {
+    console.log(`Module Algorithm total time: ${total_module_calculation_time.toFixed(1)}ms`);
+    console.log(`Function calls: ${total_module_calculation_calls}`);
+    console.log(`Average per call: ${(total_module_calculation_time / total_module_calculation_calls).toFixed(1)}ms`);
+}
+// Todo 3.5 - Test Mode UI
+function generate_solving_test_ui() {
+    document.getElementById('main-test-container-a').style.display = 'flex';
+}
+function close_solving_test_ui() {
+    document.getElementById('main-test-container-a').style.display = 'none';
+}
+function generate_reset_test_ui() {
+    document.getElementById('main-test-container-b').style.display = 'flex';
+
+    for (let i = 0; i < 5; i++) {
+        const test_options_list = document.getElementById(`test-options-${i + 1}`);
+        if (test_options_list) {
+            test_options_list.innerHTML = '';
+        }
+    }
+
+    const tests_by_type = {};
+    for (let key = 1; key <= TEST_SIZE; key++) {
+        const test_type = TEST_CONFIG[key].Type;
+        if (!tests_by_type[test_type]) {
+            tests_by_type[test_type] = [];
+        }
+        tests_by_type[test_type].push(key);
+    }
+
+    Object.keys(tests_by_type).forEach(type => {
+        const test_options_list = document.getElementById(`test-options-${type}`);
+        if (test_options_list) {
+            tests_by_type[type].forEach(test_id => {
+                const test_option = document.createElement('div');
+                test_option.classList.add('test-option');
+                test_option.innerHTML = `${format_number(test_id)}`;
+                test_option.onclick = () => {
+                    select_test(test_id);
+                };
+                test_options_list.appendChild(test_option);
+            });
+        }
     });
-    setTimeout(() => {
-        send_test_result_notice("1024 0024<br>");
-    }, time_out)
+
+    update_reset_test_selection();
+}
+function close_reset_test_ui() {
+    document.getElementById('main-test-container-b').style.display = 'none';
+}
+function update_reset_test_selection() {
+    document.querySelectorAll('.test-option:not(.ctrl)').forEach(option => {
+        const test_id = option.textContent.trim();
+        if (test_id === format_number(current_test_id)) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
+}
+function update_ans_button_selection() {
+    const answer_btn = document.getElementById('answer-btn');
+    const ans_test_btn_a = document.getElementById('ans-test-btn-a');
+    const ans_test_btn_b = document.getElementById('ans-test-btn-b');
+
+    if (mines_visible) {
+        answer_btn.classList.add('selected');
+        ans_test_btn_a.classList.add('selected');
+        ans_test_btn_b.classList.add('selected');
+    } else {
+        answer_btn.classList.remove('selected');
+        ans_test_btn_a.classList.remove('selected');
+        ans_test_btn_b.classList.remove('selected');
+    }
+}
+// Todo 3.6 - Utilities & Tools
+function start_timer() {
+    start_time = Date.now();
+    timer_interval = setInterval(update_time_info, 100);
+    update_time_info();
 }
 function handle_keydown(event) {
     const key = event.key.toLowerCase();
@@ -1998,69 +2079,72 @@ function handle_keydown(event) {
     }
     update_cursor();
 }
-// Todo 2.5 - Sidebar
-function toggle_sidebar() {
-    document.body.classList.toggle('sidebar-collapsed');
-    close_difficulty_menu();
-    close_background_menu();
+function format_number(n) {
+    if (n === 0) {
+        return ' ';
+    }
+    if (n >= 1 && n <= 9) {
+        return n.toString();
+    }
+    if (n >= 10 && n <= 35) {
+        return String.fromCharCode(65 + (n - 10));
+    }
+    return '?';
 }
-function toggle_information() {
-    const info_list = document.getElementById('information-list');
-    if (info_list.style.display === 'block') {
-        info_list.style.display = 'none';
-        document.getElementById('information-btn').classList.remove('selected');
+function format_time(timestamp, used_in_filename = false) {
+    let date = new Date(timestamp);
+    let Y = date.getFullYear();
+    let M = String(date.getMonth() + 1).padStart(2, '0');
+    let D = String(date.getDate()).padStart(2, '0');
+    let h = String(date.getHours()).padStart(2, '0');
+    let m = String(date.getMinutes()).padStart(2, '0');
+    let s = String(date.getSeconds()).padStart(2, '0');
+    if (used_in_filename) {
+        return `${Y}_${M}_${D}_${h}_${m}_${s}`;
     } else {
-        info_list.style.display = 'block';
-        document.getElementById('information-btn').classList.add('selected');
+        return `${h}:${m}:${s} / ${Y}.${M}.${D}`;
     }
 }
-function toggle_difficulty_dropdown() {
-    if (document.getElementById('difficulty-menu').style.display === 'none') {
-        open_difficulty_menu();
+function format_candidate(x, y) {
+    if (x === 0 && y === 0) {
+        return ' ';
+    } else if (x === 0) {
+        if (y > 0 && y <= 26) {
+            return String.fromCharCode(64 + y);
+        } else if (y > 26 && y <= 52) {
+            return String.fromCharCode(70 + y);
+        } else {
+            return '?';
+        }
+    } else if (y === 0) {
+        if (x > 0 && x < 10) {
+            return ' ' + x.toString();
+        } else if (x < 100) {
+            return x.toString();
+        } else {
+            return ' ?';
+        }
     } else {
-        close_difficulty_menu();
-    }
-    close_background_menu();
-}
-function toggle_background_dropdown() {
-    if (document.getElementById('background-menu').style.display === 'none') {
-        open_background_menu();
-    } else {
-        close_background_menu();
-    }
-    close_difficulty_menu();
-}
-function open_guide() {
-    document.getElementById('guide-modal').style.display = 'block';
-}
-function close_guide_with_button() {
-    document.getElementById('guide-modal').style.display = 'none';
-    document.getElementById('guide-btn').classList.remove('selected');
-}
-function close_guide(event) {
-    const content = document.getElementById('guide-content');
-    if (!content.contains(event.target)) {
-        close_guide_with_button();
+        return ' ';
     }
 }
-function open_difficulty_menu() {
-    document.getElementById('difficulty-menu').style.display = 'block';
-    document.getElementById('difficulty-btn').classList.add('selected');
+function preload_backgrounds() {
+    const path = 'Background_Collection/';
+    const resources = [
+        '01.jpg',
+        '02.jpg',
+        '03.jpg',
+        '04.jpg',
+        '05.jpg',
+    ];
+    setTimeout(() => {
+        resources.forEach(resource => {
+            new Image().src = path + resource;
+            console.log(`Loaded Background ${resource}`);
+        })
+    }, 1000);
 }
-function open_background_menu() {
-    document.getElementById('background-menu').style.display = 'block';
-    document.getElementById('background-btn').classList.add('selected');
-}
-function close_difficulty_menu() {
-    document.getElementById('difficulty-menu').style.display = 'none';
-    document.getElementById('difficulty-btn').classList.remove('selected');
-}
-function close_background_menu() {
-    document.getElementById('background-menu').style.display = 'none';
-    document.getElementById('background-btn').classList.remove('selected');
-}
-// Todo 2.6 - Text Copy
-function copy_to_clipboard(text) {
+function copy_text_to_clipboard(text) {
     navigator.clipboard.writeText(text)
         .then(() => {
             send_notice('copied');
@@ -2075,7 +2159,6 @@ function copy_to_clipboard(text) {
             send_notice('copied');
         });
 }
-// Todo 2.7 - Screenshot
 async function screenshot_data(candidate = true) {
     await document.fonts.ready;
 
@@ -2131,19 +2214,20 @@ async function screenshot_data(candidate = true) {
             } else if (cell_element.classList.contains('revealed')) {
                 ctx.fillStyle = 'rgba(128, 128, 128, 1)';
                 ctx.strokeStyle = 'rgba(166, 166, 166, 1)';
-            } else if (cell_element.classList.contains('solution-mdl')) {
+            } else if (cell_element.classList.contains('solution-both')) {
                 ctx.fillStyle = 'rgba(255, 220, 120, 1)';
                 ctx.strokeStyle = 'rgba(255, 231, 161, 1)';
-            } else if (cell_element.classList.contains('solution-sat')) {
+            } else if (cell_element.classList.contains('solution-mdl')) {
                 ctx.fillStyle = 'rgba(240, 160, 80, 1)';
                 ctx.strokeStyle = 'rgba(245, 189, 133, 1)';
-            } else if (cell_element.classList.contains('solution-both')) {
+            }  else if (cell_element.classList.contains('solution-verifier')) {
                 ctx.fillStyle = 'rgba(234, 88, 12, 1)';
                 ctx.strokeStyle = 'rgba(240, 138, 85, 1)';
             } else {
                 ctx.fillStyle = 'rgba(25, 25, 25, 1)';
                 ctx.strokeStyle = 'rgba(94, 94, 94, 1)';
             }
+
             ctx.fillRect(py, px, CELL_SIZE, CELL_SIZE);
             ctx.lineWidth = 1;
             ctx.strokeRect(py + 0.5, px + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
@@ -2165,106 +2249,12 @@ async function screenshot_data(candidate = true) {
 
     send_notice('screenshot');
 }
-function format_candidate(x, y) {
-    if (x === 0 && y === 0) {
-        return ' ';
-    } else if (x === 0) {
-        if (y > 0 && y <= 26) {
-            return String.fromCharCode(64 + y);
-        } else if (y > 26 && y <= 52) {
-            return String.fromCharCode(70 + y);
-        } else {
-            return '?';
-        }
-    } else if (y === 0) {
-        if (x > 0 && x < 10) {
-            return ' ' + x.toString();
-        } else if (x < 100) {
-            return x.toString();
-        } else {
-            return ' ?';
-        }
-    } else {
-        return ' ';
-    }
-}
-// Todo 2.8 - Test Mode UI
-function generate_solving_test_ui() {
-    document.getElementById('main-test-container-a').style.display = 'flex';
-}
-function close_solving_test_ui() {
-    document.getElementById('main-test-container-a').style.display = 'none';
-}
-function generate_reset_test_ui() {
-    document.getElementById('main-test-container-b').style.display = 'flex';
-
-    for (let i = 0; i < 5; i++) {
-        const test_options_list = document.getElementById(`test-options-${i + 1}`);
-        if (test_options_list) {
-            test_options_list.innerHTML = '';
-        }
-    }
-
-    const tests_by_type = {};
-    for (let key = 1; key <= TEST_SIZE; key++) {
-        const test_type = TEST_CONFIG[key].Type;
-        if (!tests_by_type[test_type]) {
-            tests_by_type[test_type] = [];
-        }
-        tests_by_type[test_type].push(key);
-    }
-
-    Object.keys(tests_by_type).forEach(type => {
-        const test_options_list = document.getElementById(`test-options-${type}`);
-        if (test_options_list) {
-            tests_by_type[type].forEach(test_id => {
-                const test_option = document.createElement('div');
-                test_option.classList.add('test-option');
-                test_option.innerHTML = `${format_number(test_id)}`;
-                test_option.onclick = () => {
-                    select_test(test_id);
-                };
-                test_options_list.appendChild(test_option);
-            });
-        }
-    });
-
-    update_reset_test_selection();
-}
-function close_reset_test_ui() {
-    document.getElementById('main-test-container-b').style.display = 'none';
-}
-function update_reset_test_selection() {
-    document.querySelectorAll('.test-option:not(.ctrl)').forEach(option => {
-        const test_id = option.textContent.trim();
-        if (test_id === format_number(current_test_id)) {
-            option.classList.add('selected');
-        } else {
-            option.classList.remove('selected');
-        }
-    });
-}
-function update_ans_button_selection() {
-    const answer_btn = document.getElementById('answer-btn');
-    const ans_test_btn_a = document.getElementById('ans-test-btn-a');
-    const ans_test_btn_b = document.getElementById('ans-test-btn-b');
-
-    if (mines_visible) {
-        answer_btn.classList.add('selected');
-        ans_test_btn_a.classList.add('selected');
-        ans_test_btn_b.classList.add('selected');
-    } else {
-        answer_btn.classList.remove('selected');
-        ans_test_btn_a.classList.remove('selected');
-        ans_test_btn_b.classList.remove('selected');
-    }
-}
 
 
 
-// < Part 3 - Init / Load >
+// < PART 4 - APPLICATION INITIALIZATION >
 
-// Todo 3.1 - Init Game / Load Monitor
+// Todo 4.1 - Application Startup Sequence
 document.addEventListener('keydown', handle_keydown);
 preload_backgrounds();
 update_sidebar_buttons();

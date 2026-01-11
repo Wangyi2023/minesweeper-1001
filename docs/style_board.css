@@ -118,13 +118,13 @@
     color: rgba(0, 0, 0, 1);
 }
 
-.cell.solution-mdl {
+.cell.solution-both {
     background-color: rgba(255, 220, 120, 1);
 }
-.cell.solution-sat {
+.cell.solution-mdl {
     background-color: rgba(240, 160, 80, 1);
 }
-.cell.solution-both {
+.cell.solution-verifier {
     background-color: rgba(234, 88, 12, 1);
 }
 
