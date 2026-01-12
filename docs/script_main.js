@@ -1,7 +1,7 @@
 // < PART 0 - DEFINE GLOBAL-VARIABLES >
 
 /*
-X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信息的高密度容器，数据类型为 Uint8Array。
+X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信息的高密度容器，是游戏的核心数据，数据类型为 Uint8Array。
 存储矩阵信息的方式为，将存储单个方格（Cell）的二维矩阵扁平化为一维数组，用 8 位存储单个格子的全部信息，具体信息分布在下面表格中。
 这一存储 DATA 的方式是优化到极限的，在高频访问时对缓存极其友好，并且在更改和读取内部数据的时候全部使用位运算，速度极快。
 而 CELL_ELEMENTS 只用于存储单个方格对应的页面上的元素（div）的索引，只用于渲染游戏界面。
@@ -10,17 +10,17 @@ X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信
  */
 let X, Y, N, DATA, CELL_ELEMENTS;
 /*
-下面是用 8 位存储单个方格的全部信息的方式
----------------------------------------------------------------------
+下面是我设计的用 8 位存储单个方格的全部信息的方式
+-----------------------------------------------------------------------------------------
 | internal-mark-solution   | internal-mark-mine   | covered   | mine   | number (0-8)   |
 | bit 7                    | bit 6                | bit 5     | bit 4  | bit 0-3        |
----------------------------------------------------------------------
+-----------------------------------------------------------------------------------------
 由于 number 这一项信息的数据类型为 int，我选择把它放到最低位，这样只需掩码位运算就可获取到 int 以及更改它的值。如果放在高位
 需要额外的左移和右移运算。在游戏中它的值为 0-8，因此只需要 4 bit 的位置即可存储这项信息。
 其它元素均为 boolean，随意放置不影响性能。
 其中 internal-mark-solution 和 internal-mark-mine 是内部标记，用于内部算法计算。与 mark 外部标记不同，外部标记由玩家操控，
 用于辅助玩家完成游戏，因此外部标记不需要存储到 DATA 中，而是以 'marked' 属性存储在 CELL_ELEMENTS 对应元素的 ClassList 中，
-对其的更改不会影响主要游戏数据。
+对其的更改不会影响核心数据。
 通过与掩码位运算可提取和修改它们的各项信息，如下：
 DATA[x * Y + y] & NUMBER_MASK     <-> number on the cell (x, y)
 DATA[x * Y + y] & MINE_MASK       <-> cell (x, y) is mine
@@ -42,8 +42,8 @@ DX 和 DY 的作用是快速获取和遍历一个坐标的所有周围坐标。�
 const DX = [-1, 0, 1, 0, -1, 1, 1, -1];
 const DY = [0, 1, 0, -1, 1, 1, -1, -1];
 /*
-这里是测试列表，在测试模式中会创建 8x8 特定放置雷的测试棋盘，并自动打开右上角 (7, 0) 坐标。
-测试通过在控制台使用 test 函数调用，以下测试主要用于检测 reset_mines 功能。
+这里是测试列表，在测试重置算法的测试模式中会创建 8x8 的使用预设方式排布雷的测试棋盘，并自动打开右上角 (7, 0) 坐标。
+测试通过快捷键 shift + t 或在控制台使用 test() 函数调用，以下测试主要用于检测 reset_mines 功能。
  */
 const TEST_CONFIG = {
     1  : { Type: 1, Mines: [[0, 0], [2, 0], [2, 1]] },
@@ -261,22 +261,20 @@ function start() {
 }
 function init_board_data() {
     /*
-    此函数的作用仅仅是初始化棋盘，不添加雷，目的是在玩家选择第一个格子后才通过下面的 init_mines 函数确认雷的位置。
-    实际上这个目的也可以通过重设棋盘来完成，但是它的消耗量相对较大。甚至一些作者会通过在玩家选择第一个格子后不断 restart，
-    直到玩家选择的位置不是雷为止，这样的代码非常简单但是浪费了很多算力。
+    此函数的作用仅仅是初始化棋盘，但不添加雷，目的是在玩家选择第一个格子后再调用 init_mines() 函数确认雷的位置。
      */
     DATA = new Uint8Array(X * Y).fill(Cv_);
 }
 function init_mines(target_number_of_mines, position_first_click) {
     /*
-    这个函数的作用是随机摆放雷的位置，position_first_click 为输入的赦免坐标，确保雷不会摆放到此坐标及其相邻坐标，方式如下：
+    此函数的作用是随机摆放雷的位置，position_first_click 为输入的赦免坐标，确保雷不会摆放到此坐标及其相邻坐标，方式如下：
     创建一个 Uint32Array 用作打乱后的指针列表，将需要赦免的坐标依次交换到数组最后，然后打乱除赦免坐标的部分，最后取前 n 个坐标
     将其全部设为雷，并同步更新每一个雷及其周围元素的信息。
     注意这里使用了一些优化方式，首先所谓的交换实际上是直接把后面的数字取出然后覆盖到赦免坐标的 index 上，因为最后的几个坐标是
     需要完全忽视的，也就是 index >= size 的坐标，它们的值是无意义的，更改 size 即可将其视为数组的无效数据部分。
     其次打乱时真正被有效打乱的是前 n 个最后需要被放置雷的坐标，对于第 i 个坐标，会取任意一个在 [i, size) 之间的坐标与之交换，
     这个操作截至到 size 就结束了，后面的数据只会与更靠后的数据交换，所以打乱没有意义。
-    其次摆放雷的时候不需要使用规范的 add_mine 函数，因为所有方格目前都在未打开状态，不需要更新渲染。
+    其次摆放雷的时候不需要使用规范的 set_mine() 函数，因为所有方格目前都在未打开状态，不需要更新页面的渲染。
      */
     const fx = (position_first_click / Y) | 0;
     const fy = position_first_click - fx * Y;
@@ -375,7 +373,8 @@ function count_current_mines() {
 // Todo 1.2 - Game State Transition Management
 function select_cell(i) {
     /*
-    这是玩家层面的选择方格函数，它会对特殊情况进行特定的处理，再调用规范的 reveal_cell 函数进行打开格子。
+    这是玩家层面的选择方格函数，它会先过滤一些特殊情况，然后计算当玩家点击一个坐标时真正需要打开的坐标的列表，
+    再调用规范的 admin_reveal_cells() 函数打开列表中的坐标。
      */
     if (game_over) {
         return;
@@ -443,8 +442,12 @@ function calculate_reveal_sequence(input_queue) {
 }
 function admin_reveal_cells(reveal_sequence, current_id) {
     /*
-    注意！所有 reveal cell 的行为必须通过此 admin_reveal_cell 函数，因为所有游戏状态的检测和修改都在此函数内，此处为分界线。
+    注意！所有 reveal cell 的行为必须通过此 admin_reveal_cells 函数，游戏状态的检测和修改都在此函数内，此处为分界线。
     算法也统一在此处更新，因为每次棋盘内容有变动都需要及时更新可解性（solvability）信息。
+    为了避免单次操作造成多个坐标被分别打开而造成算力的浪费，此函数吸收的不是单个坐标而是坐标列表，可以实现批量打开坐标的同时
+    仅进行单次的消耗大量算力的计算。
+    此外，此函数在 reveal cell 的过程中实现了动画与核心数据分别更新，此功能是为了在批量打开坐标的过程中既满足只进行单次消
+    耗算力的计算，又满足部分动画延迟播放的设计需求。
      */
     if (game_over) {
         return;
@@ -505,6 +508,9 @@ function terminate(completed) {
 }
 // Todo 1.3 - Administrator Function
 function activate_algorithm() {
+    /*
+    此函数的作用是，当算法由于特殊情况例如矩阵规模过大而关闭，可以通过此函数强行并且安全地打开算法。
+     */
     algorithm_enabled = true;
     update_solvability_info();
     send_notice('alg_activated');
@@ -522,6 +528,9 @@ function toggle_mines_visibility() {
     update_ans_button_selection();
 }
 function notice_test() {
+    /*
+    此函数的作用是测试发送消息的功能是否正常，运行后会将各类别消息各发送一次。
+     */
     let time_out = 0;
     Object.keys(NOTICE_CONFIG).forEach(type => {
         setTimeout(() => {
@@ -564,6 +573,10 @@ function solving_test() {
     start();
 }
 async function calculate_and_visualize_solutions() {
+    /*
+    此函数的作用是，使用一个数学上完备的扫雷求解算法来验证此游戏搭载的模块求解算法的完备性，运行此函数可以调用验证算法对
+    当前局面求解，然后将此解与模块算法给出的解进行比对，并将比对结果显示在页面上。
+     */
     if (game_over) return;
     for (let i = 0; i < X * Y; i++) {
         CELL_ELEMENTS[i].classList.remove('solution-mdl', 'solution-verifier', 'solution-both');
@@ -805,8 +818,10 @@ function add_module_cells_to_solutions(target_bitmap) {
 }
 function process_module_pair(i, j) {
     /*
-    此函数会分析两个输入模块的关系，并尝试生成所有可能的新模块。
-    它的优化在于一次遍历直接分析出两个元素的所有关系，然后按照关系耗时和关系出现频率依次处理，比如不相交（disjoint）和
+    此函数会分析两个输入模块的关系，并尝试从当前的两个模块中分析出新的模块，也就是进行信息的推理。
+    它的优化之一在于将计算结果存储至原地，第一种运算会产生 1 个新模块，而第二种运算会产生 3 个新模块，但通过对确定的模块进行标记
+    以及对部分旧模块进行删除，可以实现输入任意两个模块都只输出至多两个模块，进而实现原地模块运算。
+    它的优化之二在于一次遍历直接分析出两个元素的所有关系，然后按照关系耗时和关系出现频率依次处理，比如不相交（disjoint）和
     相等（equals）的情况最常见和简单，可快速排除。巧妙的是排除后就不需要考虑真包含（real subset）和包含（subset）的区别，
     而下一步排除了包含关系就不再需要判断真相交（real intersect）和相交（intersect）的区别（这里我用到的真相交是指两者相交
     但不存在包含关系）。
@@ -1039,12 +1054,6 @@ function remove_opened_cells_from_module_collection(list) {
 }
 // Todo 2.4 - Module-based Solving Algorithm
 function check_solvability() {
-    /*
-    在这个函数中我们会查看 solutions 列表的大小，这个列表非空意味着有解。如果当前无解，就不断地进行计算更多模块（module）
-    如果计算到完全模块集（complete_module_collection）还没有解，说明当前局面是无法通过计算得出解的。
-    逐步计算的目的是减轻计算机负担，因为实际上在每次玩家打开方格的时候都需要检测更新可解性（solvability），如果每次都以
-    计算出所有解为目的的话，会导致明显的延迟。
-     */
     solvable = false;
     for (let i = 1; i < solutions.length; i++) {
         if (solutions[i]) {
@@ -1131,13 +1140,6 @@ function send_hint() {
     }, 2000);
 }
 function auto_mark() {
-    /*
-    自动标记与求解（Solve）和提示（Hint）不同，求解是在解的列表（solutions）中提取元素打开，但是为确保游戏不卡顿，不会在
-    玩家每次点击后都计算解，而是在 solutions 为空的时候再计算解，相当于补充库存，并且计算时会在找到一个解就及时 return，
-    不会计算出全部解。而自动标记我认为需要的是把当前所有可标记的都标记上，因此需要先计算出全部雷的位置，再标记。
-    注意！这里我一样计算的是模块集（module_collection），因为它的计算函数是万能的，在计算的过程中会顺便把所有雷的位置标记上，其目的
-    实际上只是为了缩小模块集的规模，具体详见函数段落 1.4。
-     */
     if (game_over) {
         return;
     }
@@ -1160,9 +1162,8 @@ function auto_mark() {
 function reset_mines(target_mine) {
     /*
     此函数会将输入坐标上的雷转移到其它位置，为确保移动前后所有展示出的数字没有变化，有时实际上必须移动很多关联的雷。
-    转移的方法如下：
-    首先根据当前完整的模块集，标记所有一定是雷的方格。然后重置模块集，从头开始计算完整的模块集。
-    在初始化模块集后加入假模块，它的作用是将当前的雷所在方格标记为解，在此基础上计算完整模块集。最后维持雷的总数。
+    基于模块算法，这里可以使用一个非常巧妙的方案实现它的主体：将目标雷标记为解，然后将这个假信息加入模块集运算，最后可以得出
+    当算法假设此目标为解时，有哪些其它的坐标需要为此改变，以满足模块集的约束。
      */
     if (!algorithm_enabled) {
         return;
@@ -1825,6 +1826,7 @@ function update_marks_info() {
     document.getElementById('marks-info').textContent = counter_marked;
 }
 function update_solvability_info() {
+
     if (game_over || !algorithm_enabled) {
         document.getElementById('solvability-info').textContent = '---';
     } else {
