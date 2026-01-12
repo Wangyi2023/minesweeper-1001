@@ -68,6 +68,11 @@ const TEST_SIZE = Object.keys(TEST_CONFIG).length;
 这里是消息列表，普通消息的内容和进度条的颜色在此编辑。
  */
 const NOTICE_CONFIG = {
+    default: {
+        title: "Notice.",
+        content: "Default Notice Content - 1024 0024.",
+        color: 'rgba(0, 150, 255, 1)'
+    },
     congrats: {
         title: "Congratulations.",
         content: "You've successfully completed Minesweeper.",
@@ -78,11 +83,6 @@ const NOTICE_CONFIG = {
         content: "You triggered a mine.",
         color: 'rgba(255, 20, 53, 1)'
     },
-    alg_not_enabled: {
-        title: "Warning.",
-        content: "Algorithm was not activated.",
-        color: 'rgba(255, 150, 0, 1)'
-    },
     reset_complete: {
         title: "Reset Complete.",
         content: null,
@@ -92,16 +92,6 @@ const NOTICE_CONFIG = {
         title: "Reset Failed.",
         content: null,
         color: 'rgba(255, 20, 53, 1)'
-    },
-    alg_activated: {
-        title: "Algorithm Activated.",
-        content: null,
-        color: 'rgba(255, 230, 0, 1)'
-    },
-    alg_deactivated: {
-        title: "Algorithm Deactivated.",
-        content: null,
-        color: 'rgba(255, 230, 0, 1)'
     },
     test_start: {
         title: "Test Mode Activated.",
@@ -118,20 +108,10 @@ const NOTICE_CONFIG = {
         content: "Email address copied to clipboard.",
         color: 'rgba(0, 150, 255, 1)'
     },
-    algorithm_off: {
-        title: "Algorithm OFF.",
-        content: "Algorithm turned off for better performance on large boards.",
-        color: 'rgba(255, 230, 0, 1)'
-    },
     animation_off: {
         title: "Animation OFF.",
         content: "Animation turned off for better performance on large boards.",
         color: 'rgba(255, 230, 0, 1)'
-    },
-    default: {
-        title: "Notice.",
-        content: "Default Notice Content - 1024 0024.",
-        color: 'rgba(0, 150, 255, 1)'
     },
     screenshot: {
         title: "Screenshot Completed.",
@@ -147,7 +127,6 @@ const NOTICE_CONFIG = {
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
-const ALGORITHM_LIMIT = 16000;
 const ANIMATION_LIMIT = 1200;
 const NOTICE_TIME_LIMIT = 800;
 const REVEAL_DELAY = 4;
@@ -172,7 +151,6 @@ let start_time = null;
 let timer_interval = null;
 let last_notice_time = 0;
 
-let algorithm_enabled = true;
 let cursor_enabled = false;
 let mines_visible = false;
 
@@ -222,13 +200,6 @@ function start() {
         N = params.N;
         mines_inited = false;
         init_board_data();
-    }
-
-    if (X * Y <= ALGORITHM_LIMIT) {
-        algorithm_enabled = true;
-    } else {
-        algorithm_enabled = false;
-        send_notice("algorithm_off");
     }
 
     first_click = true;
@@ -507,21 +478,6 @@ function terminate(completed) {
     log_algorithm_performance();
 }
 // Todo 1.3 - Administrator Function
-function activate_algorithm() {
-    /*
-    此函数的作用是，当算法由于特殊情况例如矩阵规模过大而关闭，可以通过此函数强行并且安全地打开算法。
-     */
-    algorithm_enabled = true;
-    update_solvability_info();
-    send_notice('alg_activated');
-    console.warn("Algorithm activated.");
-}
-function deactivate_algorithm() {
-    algorithm_enabled = false;
-    update_solvability_info();
-    send_notice('alg_deactivated');
-    console.warn("Algorithm deactivated.");
-}
 function toggle_mines_visibility() {
     mines_visible = !mines_visible;
     update_mines_visibility();
@@ -1079,10 +1035,6 @@ function solve() {
     if (game_over) {
         return;
     }
-    if (!algorithm_enabled) {
-        send_notice('alg_not_enabled');
-        return;
-    }
 
     if (first_click || !solvable) {
         const random_selection = extract_random_safe_cell();
@@ -1096,10 +1048,6 @@ function solve() {
 }
 async function solve_all() {
     if (game_over) {
-        return;
-    }
-    if (!algorithm_enabled) {
-        send_notice('alg_not_enabled');
         return;
     }
     if (is_solving) {
@@ -1117,10 +1065,6 @@ async function solve_all() {
 }
 function send_hint() {
     if (game_over) {
-        return;
-    }
-    if (!algorithm_enabled) {
-        send_notice('alg_not_enabled');
         return;
     }
 
@@ -1143,10 +1087,6 @@ function auto_mark() {
     if (game_over) {
         return;
     }
-    if (!algorithm_enabled) {
-        send_notice('alg_not_enabled');
-        return;
-    }
     for (let i = 0; i < X * Y; i++) {
         if ((DATA[i] & Im_) && (DATA[i] & Cv_)) {
             const target_element = CELL_ELEMENTS[i];
@@ -1165,10 +1105,6 @@ function reset_mines(target_mine) {
     基于模块算法，这里可以使用一个非常巧妙的方案实现它的主体：将目标雷标记为解，然后将这个假信息加入模块集运算，最后可以得出
     当算法假设此目标为解时，有哪些其它的坐标需要为此改变，以满足模块集的约束。
      */
-    if (!algorithm_enabled) {
-        return;
-    }
-
     let test_result_text = '';
 
     const text_01 = 'Reset Algorithm Activated.';
@@ -1826,13 +1762,12 @@ function update_marks_info() {
     document.getElementById('marks-info').textContent = counter_marked;
 }
 function update_solvability_info() {
-
-    if (game_over || !algorithm_enabled) {
+    if (game_over) {
         document.getElementById('solvability-info').textContent = '---';
-    } else {
-        check_solvability();
-        document.getElementById('solvability-info').textContent = solvable ? 'True' : 'False';
+        return;
     }
+    check_solvability();
+    document.getElementById('solvability-info').textContent = solvable ? 'True' : 'False';
 }
 function send_notice(type = 'default', locked = true) {
     const now = Date.now();
