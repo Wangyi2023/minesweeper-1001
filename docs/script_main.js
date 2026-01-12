@@ -6,11 +6,11 @@ X 为矩阵的行数，Y 为列数，N 为雷的数量，DATA 为存储矩阵信
 这一存储 DATA 的方式是优化到极限的，在高频访问时对缓存极其友好，并且在更改和读取内部数据的时候全部使用位运算，速度极快。
 而 CELL_ELEMENTS 只用于存储单个方格对应的页面上的元素（div）的索引，只用于渲染游戏界面。
 它无法被 Uint8Array 压缩，只能用普通数组存储。
-它的作用是在局部更新游戏界面时快速寻找到需要渲染的方格，而不必频繁调用非常缓慢的 querySelector。
+它的作用是在局部更新游戏界面时快速寻找到需要渲染的方格，而不必频繁调用缓慢的 querySelector。
  */
 let X, Y, N, DATA, CELL_ELEMENTS;
 /*
-下面是我设计的用 8 位存储单个方格的全部信息的方式
+以下是我设计的用 8 位存储单个方格的全部信息的方式
 -----------------------------------------------------------------------------------------
 | internal-mark-solution   | internal-mark-mine   | covered   | mine   | number (0-8)   |
 | bit 7                    | bit 6                | bit 5     | bit 4  | bit 0-3        |
@@ -65,7 +65,8 @@ const TEST_CONFIG = {
 }
 const TEST_SIZE = Object.keys(TEST_CONFIG).length;
 /*
-这里是消息列表，普通消息的内容和进度条的颜色在此编辑。
+这里是预设的消息列表，普通消息的内容和进度条的颜色在此编辑。特殊的 Test Result Notice 没有预设的标题和内容，可以在调用
+函数的时候自由编辑。
  */
 const NOTICE_CONFIG = {
     default: {
@@ -737,6 +738,28 @@ function count_bits(bitmap) {
     return count;
 }
 // Todo 2.2 - Module Analyse
+/*
+以下是非常重要的说明：
+模块（module）是我自己命名的一个扫雷游戏的概念，不是官方的或公认的，但在我各个版本的游戏中，我都使用了这个名称。
+我大致介绍一下它的分析模式：一个模块由两个信息组成，分别是模块中的雷数（n）和模块包含的未打开的坐标（covered_positions），它表示
+在所有模块包含的坐标中有且仅有 n 个雷。
+假设在一个扫雷局面中有一个可见数字为 1，而它周围有 3 个未打开的坐标，基于此信息可以创建一个模块 A，它的雷数为 1，它的坐标为上述的
+三个坐标，这就是模块的初始化（init）。假设存在另一个模块 B 与 A 相交，则两个模块可能生产出新的模块，这就是基于模块结构的信息推理。
+继续假设 B 是 2 选 1 的状态，并且 B 的坐标集真包含于 A 的坐标集，则可以推导出新的模块 C，它的雷数为 AB 的差值，它的坐标为 AB 坐标
+的差集（A.positions \ B.positions），
+在我以往的代码实现中，我通常创建一个类（Class Module），里面存储 int: n 和 array/set: covered_positions，或者我会使用数组的形式
+[n, p1, p2, ...] 来表达模块。这导致在分析两个模块之间的关系时操作过多，例如使用大量循环，创建大量临时数组，进而导致算力消耗过大。
+在此我使用了新的存储方式：使用一个 Uint32Array 存储一个模块的两个信息。具体地说 Array 的第 0 位用于存储模块的雷数，从第 1 位开始
+以位图的结构存储模块中的坐标。
+例如在一个棋盘中，存在一个雷数为 n 的模块 A，它的坐标索引为 [0, 1, 4]，则这个模块大致是这样表达的：[n, 0b10011]。
+对于 X * Y > 32 的情况，只需用多个 32 位数字分段存储它的位图，因此一个游戏中所有模块的 Uint32Array 的长度（bitmap_size）都在
+棋盘规模被确定的时候确定。
+这种存储方式最强大的不是它的节约空间，而是在分析的过程中总是使用位运算，并且可以批量处理数据。许多操作的时间复杂度为 O(1)，空间消耗
+几乎为 0，例如取两个模块的坐标的交集并集或差集。
+为了让模块与此项目中的其它位图无障碍接轨，所有其它位图（例如全局变量 solutions）被设计为从第 1 位开始存储位图信息（不使用第 0 位）。
+我认为基于模块这一概念分析扫雷局面是高效稳定和准确的，与另外几种方式比较：相较于计算概率的方法更能处理极端情况，相较于构建线性方程组
+求解或构建 CNF 语句求解的方法更能处理矩阵规模过大的情况。
+ */
 function init_module(center_index) {
     const module = new Uint32Array(bitmap_size).fill(0);
     module[0] = DATA[center_index] & Nr_;
@@ -1927,6 +1950,10 @@ function start_timer() {
     update_time_info();
 }
 function handle_keydown(event) {
+    /*
+    此函数是确定所有快捷键的唯一函数。
+    我设计的光标（cursor）可以实现玩家用键盘操作游戏，具体相关操作请查看函数内容。
+     */
     const key = event.key.toLowerCase();
     const shift_enabled = event.shiftKey;
 
@@ -1987,7 +2014,6 @@ function handle_keydown(event) {
     if (!cursor_enabled) {
         return;
     }
-
     const step = shift_enabled ? 4 : 1;
     cursor_path = cursor_x * Y + cursor_y;
     switch (key) {
@@ -2097,6 +2123,12 @@ function copy_text_to_clipboard(text) {
         });
 }
 async function screenshot_data(candidate = true) {
+    /*
+    此函数的作用是对当前扫雷局面进行截图，并用当前时间命名图片并下载图片到默认文件夹。
+    由于浏览器禁止截图操作，我的实现方法是根据当前局面的信息绘制图片，在绘制的时候可通过输入布尔值选择是否绘制坐标轴。
+    在绘制过程中各 RGB 颜色是由此项目中 RGBA_Color.java 计算的，因此绘制的图片与页面几乎无差别，但如果修改 css 文件中的棋盘设计，
+    需要同步修改此函数中对应的设计。
+     */
     await document.fonts.ready;
 
     const indent_a = 4;
