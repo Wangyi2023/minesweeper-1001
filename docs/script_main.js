@@ -1236,9 +1236,9 @@ function reset_mines(target_mine) {
 
     const linked_covered_cells = Array.from(linked_covered_cells_set);
     if (linked_covered_cells.length > 0) {
-        let number_changed = true;
+        let reset_successful = false;
         if (linked_covered_cells.length < RESET_RECURSION_LIMIT) {
-            number_changed = !recursive_add_mines(DATA_COPY, linked_number_cells, linked_covered_cells);
+            reset_successful = recursive_add_mines(DATA_COPY, linked_number_cells, linked_covered_cells);
             for (const i of linked_covered_cells) {
                 if (DATA[i] & Mi_) {
                     const ix = (i / Y) | 0;
@@ -1248,7 +1248,7 @@ function reset_mines(target_mine) {
                 }
             }
         }
-        if (number_changed) {
+        if (!reset_successful) {
             console.warn('Number Changed!');
         }
         const text_21 = `2.Phase added ${added_counter_2}: <br>${added_candidate_list_2}`
