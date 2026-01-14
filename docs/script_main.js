@@ -128,9 +128,9 @@ const NOTICE_CONFIG = {
 /*
 这里是用于计算位图大小的表格，对于此项目中出现的位图，可以使用查表法在极短的时间内统计位图中 1 的数量。
  */
-const BIT_COUNT_8 = new Uint8Array(256);
+const BIT_COUNT_TABLE = new Uint8Array(256);
 for (let i = 1; i < 256; i++) {
-    BIT_COUNT_8[i] = (i & 1) + BIT_COUNT_8[i >> 1];
+    BIT_COUNT_TABLE[i] = (i & 1) + BIT_COUNT_TABLE[i >> 1];
 }
 
 const CELL_SIZE = 24;
@@ -735,7 +735,7 @@ function extract_bitwise_difference(bitmap_a, bitmap_b) {
 }
 function count_bits(bitmap) {
     let count = 0;
-    const table = BIT_COUNT_8;
+    const table = BIT_COUNT_TABLE;
     for (let i = 1; i < bitmap_size; i++) {
         const val = bitmap[i];
         count += table[val & 0xFF] +
