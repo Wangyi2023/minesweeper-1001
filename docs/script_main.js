@@ -125,6 +125,13 @@ const NOTICE_CONFIG = {
         color: 'rgba(255, 20, 53, 1)'
     }
 };
+/*
+这里是用于计算位图大小的表格，对于此项目中出现的位图，可以使用查表法在极短的时间内统计位图中 1 的数量。
+ */
+const BIT_COUNT_8 = new Uint8Array(256);
+for (let i = 1; i < 256; i++) {
+    BIT_COUNT_8[i] = (i & 1) + BIT_COUNT_8[i >> 1];
+}
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
@@ -728,12 +735,13 @@ function extract_bitwise_difference(bitmap_a, bitmap_b) {
 }
 function count_bits(bitmap) {
     let count = 0;
+    const table = BIT_COUNT_8;
     for (let i = 1; i < bitmap_size; i++) {
-        let v = bitmap[i];
-        while (v) {
-            v &= v - 1;
-            count++;
-        }
+        const val = bitmap[i];
+        count += table[val & 0xFF] +
+            table[(val >>> 8) & 0xFF] +
+            table[(val >>> 16) & 0xFF] +
+            table[val >>> 24];
     }
     return count;
 }
@@ -831,14 +839,14 @@ function process_module_pair(i, j) {
         if (data_i !== data_j) {
             equals = false;
         }
-        if ((data_i & ~data_j) !== 0) {
+        if (data_i & data_j) {
+            intersect = true;
+        }
+        if (data_i & ~data_j) {
             i_subset_j = false;
         }
-        if ((data_j & ~data_i) !== 0) {
+        if (data_j & ~data_i) {
             j_subset_i = false;
-        }
-        if ((data_i & data_j) !== 0) {
-            intersect = true;
         }
     }
 
@@ -893,49 +901,21 @@ function process_module_pair(i, j) {
     const count_diff_ji = count_bits(diff_ji);
 
     if (j_0 - i_0 === count_diff_ji) {
-        const module_1 = new Uint32Array(bitmap_size).fill(0);
-        module_1[0] = 0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_1[i] = diff_ij[i];
-        }
-        mark_bitmap_as_solution(module_1);
+        mark_bitmap_as_solution(diff_ij);
+        mark_bitmap_as_mine(diff_ji);
 
-        const module_2 = new Uint32Array(bitmap_size).fill(0);
-        module_2[0] = count_diff_ji;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_2[i] = diff_ji[i];
-        }
-        mark_bitmap_as_mine(module_2);
-
-        const module_3 = new Uint32Array(bitmap_size).fill(0);
-        module_3[0] = i_0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_3[i] = intersection[i];
-        }
-        module_collection[i] = module_3;
+        const module_k = intersection;
+        module_k[0] = i_0;
+        module_collection[i] = module_k;
         return true;
     }
     if (i_0 - j_0 === count_diff_ij) {
-        const module_1 = new Uint32Array(bitmap_size).fill(0);
-        module_1[0] = 0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_1[i] = diff_ji[i];
-        }
-        mark_bitmap_as_solution(module_1);
+        mark_bitmap_as_solution(diff_ji);
+        mark_bitmap_as_mine(diff_ij);
 
-        const module_2 = new Uint32Array(bitmap_size).fill(0);
-        module_2[0] = count_diff_ij;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_2[i] = diff_ij[i];
-        }
-        mark_bitmap_as_mine(module_2);
-
-        const module_3 = new Uint32Array(bitmap_size).fill(0);
-        module_3[0] = j_0;
-        for (let i = 1; i < bitmap_size; i++) {
-            module_3[i] = intersection[i];
-        }
-        module_collection[i] = module_3;
+        const module_k = intersection;
+        module_k[0] = j_0;
+        module_collection[i] = module_k;
         return true;
     }
 
