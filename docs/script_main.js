@@ -808,9 +808,6 @@ function process_module_pair(i, j) {
      */
     const module_i = module_collection[i];
     const module_j = module_collection[j];
-    if (!module_i || !module_j) {
-        return false;
-    }
     module_collection[i] = null;
     module_collection[j] = null;
 
@@ -854,7 +851,6 @@ function process_module_pair(i, j) {
         }
         return false;
     }
-
     if (equals) {
         module_collection[i] = module_i;
         return false;
@@ -904,7 +900,6 @@ function process_module_pair(i, j) {
         }
         mark_bitmap_as_solution(module_1);
 
-        // module_2: b_diff_a, mines = count_diff_ba
         const module_2 = new Uint32Array(bitmap_size).fill(0);
         module_2[0] = count_diff_ji;
         for (let i = 1; i < bitmap_size; i++) {
@@ -912,7 +907,6 @@ function process_module_pair(i, j) {
         }
         mark_bitmap_as_mine(module_2);
 
-        // module_3: intersection, mines = i[0]
         const module_3 = new Uint32Array(bitmap_size).fill(0);
         module_3[0] = i_0;
         for (let i = 1; i < bitmap_size; i++) {
@@ -922,7 +916,6 @@ function process_module_pair(i, j) {
         return true;
     }
     if (i_0 - j_0 === count_diff_ij) {
-        // module_1: j_diff_i, mines = 0
         const module_1 = new Uint32Array(bitmap_size).fill(0);
         module_1[0] = 0;
         for (let i = 1; i < bitmap_size; i++) {
@@ -930,7 +923,6 @@ function process_module_pair(i, j) {
         }
         mark_bitmap_as_solution(module_1);
 
-        // module_2: i_diff_j, mines = count_diff_ij
         const module_2 = new Uint32Array(bitmap_size).fill(0);
         module_2[0] = count_diff_ij;
         for (let i = 1; i < bitmap_size; i++) {
@@ -938,7 +930,6 @@ function process_module_pair(i, j) {
         }
         mark_bitmap_as_mine(module_2);
 
-        // module_3: intersection, mines = j[0]
         const module_3 = new Uint32Array(bitmap_size).fill(0);
         module_3[0] = j_0;
         for (let i = 1; i < bitmap_size; i++) {
@@ -973,13 +964,19 @@ function calculate_complete_module_collection() {
         generated_informative_module = false;
         for (let i = 0; i < module_collection.length; i++) {
             for (let j = i + 1; j < module_collection.length; j++) {
+                if (!module_collection[i]) {
+                    break;
+                }
+                if (!module_collection[j]) {
+                    continue;
+                }
                 generated_informative_module |= process_module_pair(i, j);
             }
         }
         generated_informative_module |= filter_decidable_modules();
         filter_null_modules();
-        console.log(`Module Collection Size: ${module_collection.length}`);
     }
+    console.log(`Module Collection Size: ${module_collection.length}`);
 
     const end_time = performance.now();
     const duration = end_time - start_time;
