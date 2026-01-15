@@ -1009,15 +1009,6 @@ function remove_opened_cells_from_module_collection(list) {
     }
 }
 // Todo 2.4 - Module-based Solving Algorithm
-function check_solvability() {
-    solvable = false;
-    for (let i = 1; i < solutions.length; i++) {
-        if (solutions[i]) {
-            solvable = true;
-            return;
-        }
-    }
-}
 function extract_random_safe_cell() {
     if (first_click) {
         return (Math.random() * X * Y) | 0;
@@ -1446,6 +1437,26 @@ async function calculate_solutions_of_verifier() {
 // < PART 3 - VISUALIZATION & INTERACTION >
 
 // Todo 3.1 - Board Rending
+function setup_event_delegation() {
+    const board = document.getElementById("board");
+    board.addEventListener('click', function(event) {
+        if (event.target.classList.contains('cell')) {
+            const index = parseInt(event.target.dataset.index);
+            if (!isNaN(index)) {
+                select_cell(index);
+            }
+        }
+    });
+    board.addEventListener('contextmenu', function(event) {
+        event.preventDefault();
+        if (event.target.classList.contains('cell')) {
+            const index = parseInt(event.target.dataset.index);
+            if (!isNaN(index)) {
+                mark_cell(index);
+            }
+        }
+    });
+}
 function generate_game_field() {
     CELL_ELEMENTS = new Array(X * Y);
     const board_element = document.getElementById("board");
@@ -1459,11 +1470,6 @@ function generate_game_field() {
         div.className = "cell";
         div.style.fontSize = `${FONT_SIZE}px`;
         div.dataset.index = i.toString();
-        div.addEventListener("click", () => select_cell(i));
-        div.addEventListener("contextmenu", (e) => {
-            e.preventDefault();
-            mark_cell(i);
-        });
         board_element.appendChild(div);
         CELL_ELEMENTS[i] = div;
     }
@@ -1505,7 +1511,9 @@ function update_cell_information_from_data(i) {
 }
 function update_all_cells_information_from_data() {
     for (let i = 0; i < X * Y; i++) {
-        update_cell_information_from_data(i);
+        if (!(DATA[i] & Cv_)) {
+            update_cell_information_from_data(i);
+        }
     }
 }
 function update_mines_visibility() {
@@ -1564,7 +1572,7 @@ function play_reveal_cells_animation(queue, current_id) {
         }, delay)
     }
 }
-function play_start_animation(max_delay = 1000) {
+function play_start_animation(delay_limit = 1000) {
     if (X * Y > ANIMATION_LIMIT) {
         send_notice("animation_off");
         return;
@@ -1572,8 +1580,8 @@ function play_start_animation(max_delay = 1000) {
     animation_timers.length = 0;
     hide_all_cells();
 
-    max_delay = Math.min(max_delay, Y * 16);
-    let delay = max_delay;
+    delay_limit = Math.min(delay_limit, Y * 16);
+    let delay = delay_limit;
     let left_pivot = 0;
     let right_pivot = Y - 1;
     while (left_pivot <= right_pivot) {
@@ -1594,37 +1602,31 @@ function play_start_animation(max_delay = 1000) {
     const end_timer = setTimeout(() => {
         cleanup_animation();
         clear_all_animation_timers();
-    }, max_delay + 100);
+    }, delay_limit + 100);
     animation_timers.push(end_timer);
 }
 function animate_double_columns(left, right) {
     if (left === right) {
         for (let x = 0; x < X; x++) {
             const cell = CELL_ELEMENTS[x * Y + left];
-            cell.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-            cell.style.opacity = '1';
-            cell.style.transform = 'scale(1)';
+            cell.classList.remove('hidden');
+            cell.classList.add('animating');
         }
     } else {
         for (let x = 0; x < X; x++) {
             const cell_left = CELL_ELEMENTS[x * Y + left];
             const cell_right = CELL_ELEMENTS[x * Y + right];
-            cell_left.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-            cell_right.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-            cell_left.style.opacity = '1';
-            cell_right.style.opacity = '1';
-            cell_left.style.transform = 'scale(1)';
-            cell_right.style.transform = 'scale(1)';
+            cell_left.classList.remove('hidden');
+            cell_left.classList.add('animating');
+            cell_right.classList.remove('hidden');
+            cell_right.classList.add('animating');
         }
     }
 }
 function hide_all_cells() {
     for (let i = 0; i < X * Y; i++) {
-        const cell = CELL_ELEMENTS[i];
-        cell.style.opacity = '0';
-        cell.style.transform = 'scale(0.2)';
-        cell.style.transition = 'none';
-        cell.style.willChange = 'opacity, transform';
+        const cell_element = CELL_ELEMENTS[i];
+        cell_element.classList.add('hidden');
     }
 }
 function clear_all_animation_timers() {
@@ -1766,7 +1768,13 @@ function update_solvability_info() {
         document.getElementById('solvability-info').textContent = '---';
         return;
     }
-    check_solvability();
+    solvable = false;
+    for (let i = 1; i < solutions.length; i++) {
+        if (solutions[i]) {
+            solvable = true;
+            return;
+        }
+    }
     document.getElementById('solvability-info').textContent = solvable ? 'True' : 'False';
 }
 function send_notice(type = 'default', locked = true) {
@@ -2202,6 +2210,7 @@ async function screenshot_data(candidate = true) {
 
 // Todo 4.1 - Application Startup Sequence
 document.addEventListener('keydown', handle_keydown);
+setup_event_delegation();
 preload_backgrounds();
 update_sidebar_buttons();
 start();

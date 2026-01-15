@@ -88,6 +88,18 @@
     background-position: center;
 }
 
+.cell.hidden {
+    opacity: 0;
+    transform: scale(0.2);
+    transition: none;
+    will-change: opacity, transform;
+}
+.cell.animating {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 1;
+    transform: scale(1);
+}
+
 .cell.cursor, .cell.hint {
     position: relative;
     z-index: 20;
