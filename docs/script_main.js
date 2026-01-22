@@ -1772,7 +1772,7 @@ function update_solvability_info() {
     for (let i = 1; i < solutions.length; i++) {
         if (solutions[i]) {
             solvable = true;
-            return;
+            break;
         }
     }
     document.getElementById('solvability-info').textContent = solvable ? 'True' : 'False';
