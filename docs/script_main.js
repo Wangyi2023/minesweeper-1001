@@ -86,12 +86,12 @@ const NOTICE_CONFIG = {
     },
     reset_complete: {
         title: "Reset Complete.",
-        content: null,
+        content: "Mines successfully redistributed.",
         color: 'rgba(0, 220, 80, 1)'
     },
     reset_failed: {
         title: "Reset Failed.",
-        content: null,
+        content: "Cannot redistribute mines while preserving constraints.",
         color: 'rgba(255, 20, 53, 1)'
     },
     test_start: {
@@ -112,7 +112,7 @@ const NOTICE_CONFIG = {
     animation_off: {
         title: "Animation OFF.",
         content: "Animation turned off for better performance on large boards.",
-        color: 'rgba(255, 230, 0, 1)'
+        color: 'rgba(255, 150, 0, 1)'
     },
     screenshot: {
         title: "Screenshot Completed.",
@@ -132,6 +132,10 @@ const BIT_COUNT_TABLE = new Uint8Array(256);
 for (let i = 1; i < 256; i++) {
     BIT_COUNT_TABLE[i] = (i & 1) + BIT_COUNT_TABLE[i >> 1];
 }
+/*
+对于页面中被频繁调用，且在页面初始化后不再改变的元素，使用下方变量将它们的地址存储下来
+ */
+let cursor_element, hint_element, solvability_info_element, time_info_element;
 
 const CELL_SIZE = 24;
 const FONT_SIZE = 16;
@@ -159,7 +163,6 @@ let start_time = null;
 let timer_interval = null;
 let last_notice_time = 0;
 
-let cursor_enabled = false;
 let mines_visible = false;
 
 let module_collection;
@@ -171,7 +174,7 @@ let total_module_calculation_time;
 let total_module_calculation_calls;
 
 let counter_covered, counter_marked;
-let cursor_x, cursor_y, cursor_path;
+let cursor_x, cursor_y;
 
 
 
@@ -225,7 +228,8 @@ function start() {
 
     cursor_x = (X / 3) | 0;
     cursor_y = (Y / 3) | 0;
-    cursor_path = cursor_x * Y + cursor_y;
+    cursor_element.style.transform = `translate3d(${cursor_y * CELL_SIZE}px, ${cursor_x * CELL_SIZE}px, 0)`;
+    hint_element.classList.add('hidden');
 
     start_time = null;
     clearInterval(timer_interval);
@@ -235,7 +239,6 @@ function start() {
     init_information_box();
     update_solvability_info();
     update_mines_visibility();
-    update_cursor();
     play_start_animation();
 }
 function init_board_data() {
@@ -508,10 +511,10 @@ function notice_test() {
 }
 // Todo 1.4 - Test Mode
 function test() {
-    cursor_enabled = false;
+    cursor_element.classList.add('hidden');
 
     set_background();
-    send_notice('test_start', false);
+    send_notice('test_start');
     solving_test();
 }
 function exit_test() {
@@ -522,7 +525,7 @@ function exit_test() {
     close_solving_test_ui();
     close_reset_test_ui();
     update_sidebar_buttons();
-    send_notice('test_end', false);
+    send_notice('test_end');
     start();
 }
 // Todo 1.5 - Solving Algorithm Completeness Test
@@ -1067,11 +1070,13 @@ function send_hint() {
         const random_index = (Math.random() * solutions_indices.length) | 0;
         hint_index = solutions_indices[random_index];
     }
+    const hint_x = (hint_index / Y) | 0;
+    const hint_y = hint_index - hint_x * Y;
 
-    const target_element = CELL_ELEMENTS[hint_index];
-    target_element.classList.add('hint');
+    hint_element.classList.remove('hidden');
+    hint_element.style.transform = `translate3d(${hint_y * CELL_SIZE}px, ${hint_x * CELL_SIZE}px, 0)`;
     setTimeout(() => {
-        target_element.classList.remove('hint');
+        hint_element.classList.add('hidden');
     }, 2000);
 }
 function auto_mark() {
@@ -1437,6 +1442,12 @@ async function calculate_solutions_of_verifier() {
 // < PART 3 - VISUALIZATION & INTERACTION >
 
 // Todo 3.1 - Board Rending
+function init_dom_references() {
+    cursor_element = document.getElementById('cursor');
+    hint_element = document.getElementById('hint');
+    time_info_element = document.getElementById('time-info');
+    solvability_info_element = document.getElementById('solvability-info');
+}
 function setup_event_delegation() {
     const board = document.getElementById("board");
     board.addEventListener('click', function(event) {
@@ -1475,8 +1486,8 @@ function generate_game_field() {
     }
 }
 function render_border() {
-    const BORDER_OFFSET = 1;
-    const BORDER_OFFSET_OUTLINE = 3;
+    const BORDER_OFFSET = 2;
+    const BORDER_OFFSET_OUTLINE = 6;
 
     const width = Y * CELL_SIZE;
     const height = X * CELL_SIZE;
@@ -1529,13 +1540,6 @@ function update_mines_visibility() {
         for (let i = 0; i < X * Y; i++) {
             CELL_ELEMENTS[i].classList.remove('ans');
         }
-    }
-}
-function update_cursor() {
-    CELL_ELEMENTS[cursor_path].classList.remove('cursor');
-    if (cursor_enabled) {
-        const target_element = CELL_ELEMENTS[cursor_x * Y + cursor_y];
-        target_element.classList.add('cursor');
     }
 }
 // Todo 3.2 - Animations
@@ -1666,26 +1670,42 @@ function update_sidebar_buttons() {
         'exit-btn': current_test_id !== null
     }
     for (const btn_id of Object.keys(buttons_visibility)) {
-        document.getElementById(btn_id).style.display = buttons_visibility[btn_id] ? 'block' : 'none';
+        const btn = document.getElementById(btn_id);
+        const parent_element = btn.parentNode;
+        const display = buttons_visibility[btn_id];
+        if (display) {
+            parent_element.classList.remove('hidden');
+        } else {
+            parent_element.classList.add('hidden');
+        }
     }
 }
 function toggle_sidebar() {
-    document.body.classList.toggle('sidebar-collapsed');
     close_difficulty_menu();
     close_background_menu();
+
+    const sidebar = document.getElementById('sidebar');
+    const open_button = document.getElementById('open-sidebar-button');
+    if (sidebar.classList.contains('collapsed')) {
+        sidebar.classList.remove('collapsed');
+        open_button.style.opacity = '0';
+    } else {
+        sidebar.classList.add('collapsed');
+        open_button.style.opacity = '1';
+    }
 }
 function toggle_information() {
     const info_list = document.getElementById('information-list');
-    if (info_list.style.display === 'block') {
-        info_list.style.display = 'none';
-        document.getElementById('information-btn').classList.remove('selected');
-    } else {
-        info_list.style.display = 'block';
+    if (info_list.classList.contains('hidden')) {
+        info_list.classList.remove('hidden');
         document.getElementById('information-btn').classList.add('selected');
+    } else {
+        info_list.classList.add('hidden');
+        document.getElementById('information-btn').classList.remove('selected');
     }
 }
 function toggle_difficulty_dropdown() {
-    if (document.getElementById('difficulty-menu').style.display === 'none') {
+    if (document.getElementById('difficulty-menu').classList.contains('hidden')) {
         open_difficulty_menu();
     } else {
         close_difficulty_menu();
@@ -1693,7 +1713,7 @@ function toggle_difficulty_dropdown() {
     close_background_menu();
 }
 function toggle_background_dropdown() {
-    if (document.getElementById('background-menu').style.display === 'none') {
+    if (document.getElementById('background-menu').classList.contains('hidden')) {
         open_background_menu();
     } else {
         close_background_menu();
@@ -1701,19 +1721,19 @@ function toggle_background_dropdown() {
     close_difficulty_menu();
 }
 function open_difficulty_menu() {
-    document.getElementById('difficulty-menu').style.display = 'block';
+    document.getElementById('difficulty-menu').classList.remove('hidden');
     document.getElementById('difficulty-btn').classList.add('selected');
 }
 function open_background_menu() {
-    document.getElementById('background-menu').style.display = 'block';
+    document.getElementById('background-menu').classList.remove('hidden');
     document.getElementById('background-btn').classList.add('selected');
 }
 function close_difficulty_menu() {
-    document.getElementById('difficulty-menu').style.display = 'none';
+    document.getElementById('difficulty-menu').classList.add('hidden');
     document.getElementById('difficulty-btn').classList.remove('selected');
 }
 function close_background_menu() {
-    document.getElementById('background-menu').style.display = 'none';
+    document.getElementById('background-menu').classList.add('hidden');
     document.getElementById('background-btn').classList.remove('selected');
 }
 function set_difficulty(difficulty) {
@@ -1734,6 +1754,7 @@ function set_background(filename = 'default.jpg', title_image = 'dark') {
 }
 function open_guide() {
     document.getElementById('guide-modal').style.display = 'block';
+    document.getElementById('guide-btn').classList.add('selected');
 }
 function close_guide_with_button() {
     document.getElementById('guide-modal').style.display = 'none';
@@ -1758,14 +1779,14 @@ function init_information_box() {
 }
 function update_time_info() {
     const elapsed = (Date.now() - start_time) / 1000;
-    document.getElementById('time-info').textContent = `${elapsed.toFixed(1)} s`;
+    time_info_element.textContent = `${elapsed.toFixed(1)} s`;
 }
 function update_marks_info() {
     document.getElementById('marks-info').textContent = counter_marked;
 }
 function update_solvability_info() {
     if (game_over) {
-        document.getElementById('solvability-info').textContent = '---';
+        solvability_info_element.textContent = '---';
         return;
     }
     solvable = false;
@@ -1775,7 +1796,7 @@ function update_solvability_info() {
             break;
         }
     }
-    document.getElementById('solvability-info').textContent = solvable ? 'True' : 'False';
+    solvability_info_element.textContent = solvable ? 'True' : 'False';
 }
 function send_notice(type = 'default', locked = true) {
     const now = Date.now();
@@ -1788,7 +1809,6 @@ function send_notice(type = 'default', locked = true) {
 
     const { title, content, color } = NOTICE_CONFIG[type];
 
-    const container = document.getElementById('notice-container');
     const notice = document.createElement('div');
     const notice_title = document.createElement('div');
     const notice_content = document.createElement('div');
@@ -1802,34 +1822,24 @@ function send_notice(type = 'default', locked = true) {
     notice_title.innerHTML = title;
     notice_content.innerHTML = content;
     notice_progress.style.backgroundColor = color;
-    notice_progress.style.animation = `progressShrink ${NOTICE_DISPLAY_TIME }ms linear forwards`;
+    notice_progress.style.animation = `progressShrink ${NOTICE_DISPLAY_TIME}ms linear forwards`;
 
     notice.appendChild(notice_title);
     notice.appendChild(notice_content);
     notice.appendChild(notice_progress);
 
     notice.onclick = () => {
-        if (container.contains(notice)) {
-            container.removeChild(notice);
-        }
+        remove_notice(notice);
     };
-    notice.style.animation = 'slideInRight 0.3s ease forwards';
-
-    container.appendChild(notice);
+    push_notice(notice);
     setTimeout(() => {
-        notice.style.animation = 'fadeOutUp 0.3s ease forwards';
-        setTimeout(() => {
-            if (container.contains(notice)) {
-                container.removeChild(notice);
-            }
-        }, 300);
-    }, NOTICE_DISPLAY_TIME );
+        remove_notice(notice);
+    }, NOTICE_DISPLAY_TIME);
 }
 function send_test_result_notice(text) {
     if (current_test_id === null) {
         return;
     }
-    const container = document.getElementById('notice-container');
     const test_result_notice = document.createElement('div');
     const notice_title = document.createElement('div');
     const notice_content = document.createElement('div');
@@ -1844,13 +1854,52 @@ function send_test_result_notice(text) {
     test_result_notice.appendChild(notice_content);
 
     test_result_notice.onclick = () => {
-        if (container.contains(test_result_notice)) {
-            container.removeChild(test_result_notice);
-        }
+        remove_notice(test_result_notice)
     };
-    test_result_notice.style.animation = 'slideInRight 0.3s ease forwards';
+    push_notice(test_result_notice);
+}
+function push_notice(target_notice) {
+    const empty_wrapper = document.createElement('div');
+    empty_wrapper.classList.add('notice-wrapper-empty');
 
-    container.appendChild(test_result_notice);
+    const notice_wrapper = document.createElement('div');
+    notice_wrapper.classList.add('notice-wrapper');
+    notice_wrapper.appendChild(target_notice);
+
+    const container = document.getElementById('notice-container');
+    container.appendChild(empty_wrapper);
+    setTimeout(() => {
+        container.removeChild(empty_wrapper);
+    }, 100);
+
+    container.appendChild(notice_wrapper);
+    const total_height = notice_wrapper.offsetHeight;
+    setTimeout(() => {
+        empty_wrapper.style.height = '0';
+
+        notice_wrapper.style.height = total_height + 'px';
+        notice_wrapper.style.paddingBottom = '0';
+
+        target_notice.style.opacity = '1';
+    }, 0);
+}
+function remove_notice(target_notice) {
+    if (!target_notice) {
+        return;
+    }
+    if (target_notice.classList.contains('removed')) {
+        return;
+    }
+    target_notice.classList.add('removed')
+    const wrapper = target_notice.parentNode;
+
+    target_notice.style.opacity = '0';
+    setTimeout(() => {
+        wrapper.style.height = '0';
+    }, 100);
+    setTimeout(() => {
+        wrapper.parentNode.removeChild(wrapper);
+    }, 300);
 }
 function log_algorithm_performance() {
     console.log(`Module Algorithm total time: ${total_module_calculation_time.toFixed(1)}ms`);
@@ -1859,13 +1908,13 @@ function log_algorithm_performance() {
 }
 // Todo 3.5 - Test Mode UI
 function generate_solving_test_ui() {
-    document.getElementById('main-test-container-a').style.display = 'flex';
+    document.getElementById('main-test-container-a').classList.remove('hidden');
 }
 function close_solving_test_ui() {
-    document.getElementById('main-test-container-a').style.display = 'none';
+    document.getElementById('main-test-container-a').classList.add('hidden');
 }
 function generate_reset_test_ui() {
-    document.getElementById('main-test-container-b').style.display = 'flex';
+    document.getElementById('main-test-container-b').classList.remove('hidden');
 
     for (let i = 0; i < 5; i++) {
         const test_options_list = document.getElementById(`test-options-${i + 1}`);
@@ -1901,7 +1950,7 @@ function generate_reset_test_ui() {
     update_reset_test_selection();
 }
 function close_reset_test_ui() {
-    document.getElementById('main-test-container-b').style.display = 'none';
+    document.getElementById('main-test-container-b').classList.add('hidden');
 }
 function update_reset_test_selection() {
     document.querySelectorAll('.test-option:not(.ctrl)').forEach(option => {
@@ -1978,9 +2027,7 @@ function handle_keydown(event) {
             if (!shift_enabled) {
                 return;
             }
-            cursor_enabled = !cursor_enabled;
-            const cell = CELL_ELEMENTS[cursor_x * Y + cursor_y];
-            cell.classList.toggle('cursor', cursor_enabled);
+            cursor_element.classList.toggle('hidden');
             return;
         case 'r':
             start();
@@ -1996,27 +2043,30 @@ function handle_keydown(event) {
             break;
     }
 
-    if (!cursor_enabled) {
+    if (cursor_element.classList.contains('hidden')) {
         return;
     }
     const step = shift_enabled ? 4 : 1;
-    cursor_path = cursor_x * Y + cursor_y;
     switch (key) {
         case 'w':
         case 'arrowup':
             cursor_x = Math.max(0, cursor_x - step);
+            cursor_element.style.transform = `translate3d(${cursor_y * CELL_SIZE}px, ${cursor_x * CELL_SIZE}px, 0)`;
             break;
         case 's':
         case 'arrowdown':
             cursor_x = Math.min(X - 1, cursor_x + step);
+            cursor_element.style.transform = `translate3d(${cursor_y * CELL_SIZE}px, ${cursor_x * CELL_SIZE}px, 0)`;
             break;
         case 'a':
         case 'arrowleft':
             cursor_y = Math.max(0, cursor_y - step);
+            cursor_element.style.transform = `translate3d(${cursor_y * CELL_SIZE}px, ${cursor_x * CELL_SIZE}px, 0)`;
             break;
         case 'd':
         case 'arrowright':
             cursor_y = Math.min(Y - 1, cursor_y + step);
+            cursor_element.style.transform = `translate3d(${cursor_y * CELL_SIZE}px, ${cursor_x * CELL_SIZE}px, 0)`;
             break;
         case 'm':
             mark_cell(cursor_x * Y + cursor_y);
@@ -2025,7 +2075,6 @@ function handle_keydown(event) {
             select_cell(cursor_x * Y + cursor_y);
             break;
     }
-    update_cursor();
 }
 function format_number(n) {
     if (n === 0) {
@@ -2082,8 +2131,6 @@ function preload_backgrounds() {
         '01.jpg',
         '02.jpg',
         '03.jpg',
-        '04.jpg',
-        '05.jpg',
     ];
     setTimeout(() => {
         resources.forEach(resource => {
@@ -2213,4 +2260,5 @@ document.addEventListener('keydown', handle_keydown);
 setup_event_delegation();
 preload_backgrounds();
 update_sidebar_buttons();
+init_dom_references();
 start();

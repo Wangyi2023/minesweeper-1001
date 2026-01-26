@@ -1,7 +1,8 @@
 /* Part 5 - Board */
 .board {
     display: grid;
-    background: transparent;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 100;
 }
 .board-wrapper {
     position: relative;
@@ -11,14 +12,15 @@
     position: absolute;
     border: 2px solid rgba(255, 255, 255, 0.8);
     box-sizing: border-box;
-    z-index: 2;
+    z-index: 3;
     pointer-events: none;
 }
 .border-outline {
     display: none;
     position: absolute;
-    border: 4px solid rgba(255, 255, 255, 0.5);
+    border: 6px solid rgba(255, 255, 255, 0.5);
     box-sizing: border-box;
+    border-radius: 4px;
     z-index: 2;
     pointer-events: none;
 }
@@ -26,7 +28,7 @@
 
 /* Part 6 - Cell */
 .cell {
-    background-color: rgba(0, 0, 0, 0.9);
+    background-color: rgba(0, 0, 0, 0.8);
     width: 100%;
     height: 100%;
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -44,12 +46,12 @@
     z-index: 10;
 }
 .cell.revealed {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: transparent;
     animation: cellReveal 0.2s ease-out forwards;
 }
 .cell.mine {
     position: relative;
-    z-index: 5000;
+    z-index: 100;
     background-color: rgba(255, 0, 0, 0.2);
     box-sizing: border-box;
 }
@@ -100,26 +102,33 @@
     transform: scale(1);
 }
 
-.cell.cursor, .cell.hint {
-    position: relative;
-    z-index: 20;
-}
-.cell.cursor:not(.mine)::before, .cell.hint:not(.mine)::before {
-    content: "";
-    position: absolute;
+.cursor {
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
-    box-shadow:
-            0 0 8px 2px rgba(255, 255, 255, 1),
-            0 0 12px 3px rgba(255, 255, 255, 0.6),
-            0 0 16px 4px rgba(255, 255, 255, 0.4);
-    animation:
-            cursorPulse 1.5s infinite ease-in-out,
-            cursorGlow 0.75s infinite alternate;
+    position: absolute;
+    width: 24px;
+    height: 24px;
     pointer-events: none;
-    z-index: 4;
+    z-index: 1000;
+    opacity: 1;
+
+    background: white;
+    background-size: 8px 8px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: black;
+    font-weight: bold;
+    font-size: 16px;
+    font-family: 'Tahoma', 'Microsoft Sans Serif', 'Arial', sans-serif;
+
+    transition:
+            transform 0.1s cubic-bezier(0.2, 0.8, 0.5, 1),
+            opacity 0.2s cubic-bezier(0.4, 0.8, 0.9, 1);
+}
+.cursor.hidden {
+    opacity: 0;
 }
 
 .cell.ans {
